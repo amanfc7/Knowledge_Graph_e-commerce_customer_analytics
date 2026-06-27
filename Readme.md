@@ -1,4 +1,4 @@
-# Multi-Layer E-commerce Knowledge Graph for Customer Behavior and Financial Analysis
+# Multi-Layer E-commerce Knowledge Graph for Customer Behavior and Financial Analysis 
  
 ## Overview
 This project builds a multi-layer Knowledge Graph from the Olist Brazilian E-commerce dataset to analyze customer behavior, product relationships, seller performance, and financial transactions. The system integrates graph-based modeling, machine learning embeddings, sentiment analysis, and geospatial clustering to extract meaningful business insights from raw e-commerce data.
