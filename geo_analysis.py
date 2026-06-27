@@ -1,14 +1,15 @@
 from sklearn.cluster import KMeans
-import pandas as pd
 
-def run_geo_analysis(geo_df):
+def run_geo_analysis(geo):
 
-    print("\n--- GEO CLUSTERING (EXCEED LO) ---")
+    print("\n--- GEO CLUSTERING ANALYSIS ---")
 
-    coords = geo_df[["geolocation_lat", "geolocation_lng"]].dropna()
+    geo_clean = geo.dropna(subset=["geolocation_lat", "geolocation_lng"]).copy()
 
-    kmeans = KMeans(n_clusters=10, n_init=10)
-    geo_df["cluster"] = kmeans.fit_predict(coords)
+    coords = geo_clean[["geolocation_lat", "geolocation_lng"]]
 
-    print("\nCluster counts:")
-    print(geo_df["cluster"].value_counts().head())
+    kmeans = KMeans(n_clusters=8, n_init=10, random_state=42)
+    geo_clean["cluster"] = kmeans.fit_predict(coords)
+
+    print("\nCluster distribution:")
+    print(geo_clean["cluster"].value_counts().head())

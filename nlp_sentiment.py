@@ -1,16 +1,22 @@
+import pandas as pd
 from textblob import TextBlob
 
-def analyze_sentiment(reviews_df):
+def run_sentiment_analysis(reviews):
 
-    print("\n--- SENTIMENT ANALYSIS (EXCEED LO) ---")
+    print("\n--- SENTIMENT ANALYSIS (REVIEWS) ---")
 
-    reviews_df = reviews_df.copy()
+    # Clean data
+    reviews = reviews.dropna(subset=["review_comment_message"]).copy()
 
-    reviews_df["sentiment"] = reviews_df["review_comment_message"].astype(str).apply(
-        lambda x: TextBlob(x).sentiment.polarity
+    # Sentiment scoring
+    reviews["sentiment"] = reviews["review_comment_message"].apply(
+        lambda x: TextBlob(str(x)).sentiment.polarity
     )
 
-    print("\nAverage Sentiment:", reviews_df["sentiment"].mean())
+    print("\nAverage sentiment:", reviews["sentiment"].mean())
 
-    print("\nTop Positive Reviews:")
-    print(reviews_df.sort_values("sentiment", ascending=False).head(5))
+    print("\nMost positive reviews:")
+    print(reviews.sort_values("sentiment", ascending=False)[["review_comment_message", "sentiment"]].head(5))
+
+    print("\nMost negative reviews:")
+    print(reviews.sort_values("sentiment")[["review_comment_message", "sentiment"]].head(5))
