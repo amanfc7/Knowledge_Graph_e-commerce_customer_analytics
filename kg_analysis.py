@@ -8,8 +8,14 @@ def run_analysis(customers, orders, order_items, products, payments):
 
     # Top customers
     customer_orders = customers.merge(orders, on="customer_id")
-    top_customers = customer_orders["customer_id"].value_counts().head(10)
-    print("\nTop Customers:\n", top_customers)
+    # Top Customers by Spending
+    customer_spending = payments.merge(orders, on="order_id") \
+        .groupby("customer_id")["payment_value"] \
+        .sum() \
+        .sort_values(ascending=False) \
+        .head(10)
+
+    print("\nTop Customers by Spending:\n", customer_spending)
 
     # Top products
     top_products = order_items["product_id"].value_counts().head(10)

@@ -1,4 +1,5 @@
 import networkx as nx
+import pandas as pd
 
 def build_graph(customers, orders, order_items, products, payments, category):
 
