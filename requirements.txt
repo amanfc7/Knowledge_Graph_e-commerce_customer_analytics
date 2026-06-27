@@ -1,4 +1,8 @@
 pandas
+numpy
 networkx
 matplotlib
+scikit-learn
 kagglehub
+node2vec
+textblob
