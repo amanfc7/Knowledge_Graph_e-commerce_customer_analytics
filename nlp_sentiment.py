@@ -1,22 +1,34 @@
-import pandas as pd
 from textblob import TextBlob
+
 
 def run_sentiment_analysis(reviews):
 
-    print("\n--- SENTIMENT ANALYSIS (REVIEWS) ---")
+    print("\n--- NLP LAYER (REVIEW SENTIMENT KG ENRICHMENT) ---")
 
-    # Clean data
     reviews = reviews.dropna(subset=["review_comment_message"]).copy()
 
-    # Sentiment scoring
+    # -------------------------
+    # SENTIMENT AS DERIVED PROPERTY
+    # -------------------------
     reviews["sentiment"] = reviews["review_comment_message"].apply(
         lambda x: TextBlob(str(x)).sentiment.polarity
     )
 
-    print("\nAverage sentiment:", reviews["sentiment"].mean())
+    print("\nDERIVED FACT: Average Sentiment =", reviews["sentiment"].mean())
 
-    print("\nMost positive reviews:")
-    print(reviews.sort_values("sentiment", ascending=False)[["review_comment_message", "sentiment"]].head(5))
+    print("\nTop Positive Reviews:")
+    print(
+        reviews.sort_values("sentiment", ascending=False)[
+            ["review_comment_message", "sentiment"]
+        ].head(5)
+    )
 
-    print("\nMost negative reviews:")
-    print(reviews.sort_values("sentiment")[["review_comment_message", "sentiment"]].head(5))
+    print("\nTop Negative Reviews:")
+    print(
+        reviews.sort_values("sentiment")[
+            ["review_comment_message", "sentiment"]
+        ].head(5)
+    )
+
+    print("\n--- INTERPRETATION ---")
+    print("Sentiment acts as a soft signal enriching the Knowledge Graph nodes.")

@@ -1,77 +1,102 @@
-# Multi-Layer E-commerce Knowledge Graph for Customer Behavior and Financial Analysis 
- 
-## Overview
-This project builds a multi-layer Knowledge Graph from the Olist Brazilian E-commerce dataset to analyze customer behavior, product relationships, seller performance, and financial transactions. The system integrates graph-based modeling, machine learning embeddings, sentiment analysis, and geospatial clustering to extract meaningful business insights from raw e-commerce data.
+# Multi-Layer Knowledge Graph for E-commerce Customer Behavior and Financial Analysis (KGMS-Based System)
 
-The goal is to demonstrate how Knowledge Graphs can unify heterogeneous datasets into a single analytical structure for advanced data science and financial analysis.
+## Overview
+This project builds a **multi-layer Knowledge Graph Management System (KGMS)** using the Olist Brazilian E-commerce dataset.
+
+The system integrates:
+- Knowledge Graph construction
+- Rule-based reasoning (Datalog-inspired)
+- Graph embeddings (Node2Vec as GNN approximation)
+- NLP sentiment enrichment
+- Geospatial clustering
+- Financial analytics
+
+The goal is to demonstrate how **Knowledge Graphs unify structured + unstructured + relational data into a single reasoning system**.
 
 ---
 
-## Features
-- Multi-layer Knowledge Graph construction from 9 interconnected datasets
-- Customer behavior analysis (purchase patterns and CLV)
-- Financial analytics (total revenue and customer lifetime value)
-- Product and category relationship analysis
-- Seller performance analysis (revenue and diversity)
-- Review sentiment analysis using NLP (TextBlob)
-- Geospatial clustering of customer/geolocation data
-- Graph embeddings using Node2Vec for similarity analysis
-- Graph visualization using NetworkX
-- JSON export of Knowledge Graph for interoperability
+## KGMS Architecture
+
+The system follows a classical KGMS architecture:
+
+### 1. Ground Extensional Layer
+- Raw datasets (customers, orders, products, payments)
+
+### 2. Intensional Layer (Reasoning)
+- Derived facts:
+  - Customer Lifetime Value
+  - Repeat customers
+  - Product popularity
+  - Category trends
+
+### 3. Subsymbolic Layer
+- Node2Vec embeddings
+- Interpreted as a simplified GNN message passing process
+
+### 4. External Data Layer
+- NLP sentiment analysis (reviews)
+- Geospatial clustering
+
+---
+
+## Key Features
+
+- Multi-relational Knowledge Graph construction
+- Schema-aware graph modeling
+- Rule-based reasoning (Datalog-style inference)
+- Customer behavior analysis
+- Financial analytics (revenue, CLV)
+- Seller performance analysis
+- NLP sentiment enrichment
+- Geospatial clustering
+- Node2Vec embeddings (GNN-equivalent reasoning)
+- Graph visualization (PyVis)
+- JSON export for interoperability
 
 ---
 
 ## Dataset
-Olist Brazilian E-commerce dataset (Kaggle)
 
-This dataset includes:
+Olist Brazilian E-commerce Dataset (Kaggle)
+
+Includes:
 - Customers
 - Orders
-- Order items
-- Payments
 - Products
+- Payments
 - Sellers
 - Reviews
 - Geolocation data
-- Product category translation
-
-It represents a real-world e-commerce ecosystem with financial and behavioral relationships.
+- Product categories
 
 ---
 
 ## Technologies
+
 - Python
-- Pandas
-- NetworkX
-- Matplotlib
-- Scikit-learn
-- TextBlob (NLP sentiment analysis)
+- NetworkX (Graph modeling)
+- Pandas (data processing)
+- Scikit-learn (clustering)
 - Node2Vec (graph embeddings)
-- KaggleHub
-- JSON (graph export format)
+- TextBlob (NLP sentiment)
+- PyVis (graph visualization)
 
 ---
 
-## Key Components
+## Learning Outcomes Covered
 
-### 1. Knowledge Graph Layer
-Models relationships between customers, orders, products, sellers, payments, and categories using a directed graph structure.
+### Core (Strong proficiency)
+- LO7: Knowledge representation using graphs
+- LO8: Data integration from heterogeneous sources
+- LO9: Machine learning on graph structures
 
-### 2. Analytics Layer
-Performs financial and behavioral analysis including:
-- Revenue computation
-- Customer Lifetime Value (CLV)
-- Product demand analysis
-- Category trends
-
-### 3. Machine Learning Layer
-Applies Node2Vec embeddings to capture structural similarity between nodes in the graph.
-
-### 4. NLP Layer
-Analyzes customer review text to compute sentiment scores and identify positive/negative feedback trends.
-
-### 5. Geospatial Layer
-Clusters geolocation data to identify regional patterns in customer distribution.
+### Additional (Basic proficiency)
+- LO1, LO2: Data preprocessing & ingestion
+- LO4: Data analytics
+- LO5: Graph modeling
+- LO6: Data interpretation
+- LO11: Visualization
+- LO12: Applied AI pipeline design
 
 ---
 

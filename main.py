@@ -10,61 +10,67 @@ from nlp_sentiment import run_sentiment_analysis
 from seller_analysis import run_seller_analysis
 from geo_analysis import run_geo_analysis
 from kg_visualizer import export_graph_to_json
+from kg_show_visualization import build_visualization
 
 
 def main():
 
+    print("\n==============================")
+    print(" KGMS PIPELINE STARTING ")
+    print("==============================")
+
+    # -------------------------------------------------
+    # 1. DATA LAYER (GROUND FACTS)
+    # -------------------------------------------------
     customers, orders, order_items, products, payments, sellers, reviews, geo, category = load_data()
 
-    # -----------------------
-    # BUILD GRAPH
-    # -----------------------
+    # -------------------------------------------------
+    # 2. KNOWLEDGE GRAPH CONSTRUCTION
+    # -------------------------------------------------
     G = build_graph(customers, orders, order_items, products, payments, category)
 
-    print("\nGraph built successfully!")
+    print("\n--- KG SUMMARY ---")
     print("Nodes:", G.number_of_nodes())
     print("Edges:", G.number_of_edges())
 
-    # -----------------------
-    # ANALYTICS (CORE LO)
-    # -----------------------
+    # -------------------------------------------------
+    # 3. REASONING + ANALYTICS LAYER
+    # -------------------------------------------------
     run_analysis(customers, orders, order_items, products, payments)
 
-    # -----------------------
-    # ML (EXCEED LO)
-    # -----------------------
+    # -------------------------------------------------
+    # 4. MACHINE LEARNING / EMBEDDINGS (GNN-LIKE)
+    # -------------------------------------------------
     run_node2vec(G)
 
-    # -----------------------
-    # NLP (EXCEED LO)
-    # -----------------------
+    # -------------------------------------------------
+    # 5. NLP LAYER (UNSTRUCTURED DATA)
+    # -------------------------------------------------
     run_sentiment_analysis(reviews)
 
-    # -----------------------
-    # SELLER ANALYSIS (EXCEED LO)
-    # -----------------------
+    # -------------------------------------------------
+    # 6. SELLER ANALYSIS (ECONOMIC KG LAYER)
+    # -------------------------------------------------
     run_seller_analysis(order_items, payments)
 
-    # -----------------------
-    # GEO ANALYSIS (EXCEED LO)
-    # -----------------------
+    # -------------------------------------------------
+    # 7. GEO SPATIAL KG LAYER
+    # -------------------------------------------------
     run_geo_analysis(geo)
 
-    # -----------------------
-    # VISUALIZATION
-    # -----------------------
-    sample_nodes = list(G.nodes())[:100]
-    subgraph = G.subgraph(sample_nodes)
-
-    plt.figure(figsize=(10, 6))
-    nx.draw(subgraph, node_size=20, with_labels=False)
-    plt.title("E-commerce Knowledge Graph")
-    plt.show()
-
-    # -----------------------
-    # EXPORT
-    # -----------------------
+    # -------------------------------------------------
+    # 8. EXPORT KG (FOR VISUALIZATION / ML)
+    # -------------------------------------------------
     export_graph_to_json(G)
+
+    # -------------------------------------------------
+    # 9. VISUALIZATION
+    # -------------------------------------------------
+    build_visualization()
+
+    print("\n==============================")
+    print(" PIPELINE COMPLETED ")
+    print("==============================")
 
 
 if __name__ == "__main__":

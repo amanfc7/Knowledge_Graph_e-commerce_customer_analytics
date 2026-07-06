@@ -1,19 +1,31 @@
 import pandas as pd
 
+
 def run_seller_analysis(order_items, payments):
 
-    print("\n--- SELLER PERFORMANCE ANALYSIS ---")
+    print("\n--- SELLER KG ANALYSIS (RELATIONAL VIEW) ---")
 
-    # Merge seller revenue
+    # -------------------------
+    # SELLER REVENUE GRAPH EDGE
+    # -------------------------
     merged = order_items.merge(payments, on="order_id")
 
     seller_revenue = merged.groupby("seller_id")["payment_value"].sum().sort_values(ascending=False)
 
-    print("\nTop Sellers by Revenue:")
+    print("\nDERIVED FACT: Seller Revenue (Top 10)")
     print(seller_revenue.head(10))
 
-    # Product diversity per seller
+    # -------------------------
+    # SELLER SPECIALIZATION (KG PROPERTY)
+    # -------------------------
     seller_diversity = order_items.groupby("seller_id")["product_id"].nunique().sort_values(ascending=False)
 
-    print("\nTop Sellers by Product Diversity:")
+    print("\nDERIVED FACT: Seller Product Diversity")
     print(seller_diversity.head(10))
+
+    # -------------------------
+    # INTERPRETATION LAYER (KG INSIGHT)
+    # -------------------------
+    print("\n--- KG INSIGHT ---")
+    print("High diversity sellers ≈ generalists in product graph space")
+    print("High revenue sellers ≈ central economic nodes in KG")

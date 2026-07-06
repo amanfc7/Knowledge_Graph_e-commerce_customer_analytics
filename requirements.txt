@@ -7,3 +7,5 @@ kagglehub
 node2vec
 textblob
 pyvis
+scipy
+tqdm
