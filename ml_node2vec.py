@@ -1,45 +1,68 @@
 from node2vec import Node2Vec
 import numpy as np
+import pickle
+import os
 
 
 # ----------------------------------------------------
-# THEORY BRIDGE (IMPORTANT FOR REPORT / LO MARKING)
+# THEORY BRIDGE (REPORT / LO EXPLANATION)
 # ----------------------------------------------------
+
 def explain_gnn_relation():
+
     print("\n--- THEORY BRIDGE: KG ↔ GNN ↔ EMBEDDINGS ---")
+
     print("""
     1. Knowledge Graph:
-       Nodes + edges = symbolic relational structure
+       - Nodes represent entities/events
+       - Edges represent semantic relationships
 
     2. GNN Message Passing:
-       h_v^{k+1} = AGG(h_v^k, h_neighbors^k)
+       
+       h_v^(k+1) = AGG(h_v^k, h_neighbors^k)
+
+       Node representation is updated using neighbourhood information.
 
     3. Node2Vec:
-       Approximates message passing using random walks:
-       - random walks ≈ neighborhood sampling
-       - skip-gram ≈ aggregation function
 
-    4. Conclusion:
-       Node2Vec is a SPECIAL CASE of GNN embedding learning
-       where:
-       - fixed aggregator
-       - no learnable message function
-       - shallow propagation depth
+       - Random walks explore graph neighbourhoods
+       - Skip-gram learns node representations
+
+       Similarity in embedding space represents structural similarity.
+
+    4. Difference:
+
+       Node2Vec:
+       - fixed aggregation
+       - no trainable message passing layers
+       - unsupervised representation learning
+
+       GNN:
+       - learnable aggregation functions
+       - task-specific training
+
+    Therefore:
+    Node2Vec provides a lightweight approximation of graph representation learning.
     """)
 
 
+
 # ----------------------------------------------------
-# EMBEDDING MODEL
+# NODE2VEC MODEL
 # ----------------------------------------------------
+
 def run_node2vec(G):
 
-    print("\n--- KG EMBEDDINGS (NODE2VEC / GNN EQUIVALENCE) ---")
+    print("\n--- KG EMBEDDINGS (NODE2VEC GRAPH LEARNING) ---")
+
 
     explain_gnn_relation()
 
-    # -----------------------------
-    # MODEL
-    # -----------------------------
+
+    # ------------------------------------------------
+    # Node2Vec Configuration
+    # ------------------------------------------------
+
     node2vec = Node2Vec(
         G,
         dimensions=64,
@@ -50,25 +73,84 @@ def run_node2vec(G):
         q=1
     )
 
-    model = node2vec.fit(window=10, min_count=1)
 
-    # -----------------------------
-    # EMBEDDINGS = LATENT KG STATE
-    # -----------------------------
-    embeddings = model.wv
+    print("\nTraining Node2Vec embedding model...")
 
-    nodes = list(G.nodes())[:5]
 
-    print("\n--- LATENT SEMANTIC SIMILARITY (KG REASONING IN EMBED SPACE) ---")
+    model = node2vec.fit(
+        window=10,
+        min_count=1,
+        batch_words=128
+    )
 
-    for node in nodes:
-        if str(node) in embeddings:
 
-            print(f"\nNode: {node}")
+    print("Embedding training completed")
 
-            similar = model.wv.most_similar(str(node), topn=5)
 
-            for s, score in similar:
-                print(f"  -> {s} (similarity: {round(score, 3)})")
+    # ------------------------------------------------
+    # Save Model
+    # ------------------------------------------------
+
+    os.makedirs(
+        "models",
+        exist_ok=True
+    )
+
+
+    model_path = "models/node2vec_model.pkl"
+
+
+    with open(model_path, "wb") as f:
+        pickle.dump(model, f)
+
+
+    print(
+        "Saved embedding model:",
+        model_path
+    )
+
+
+    # ------------------------------------------------
+    # Similarity Reasoning
+    # ------------------------------------------------
+
+    print(
+        "\n--- LATENT KG REASONING USING EMBEDDINGS ---"
+    )
+
+
+    sample_nodes = list(G.nodes())[:5]
+
+
+    for node in sample_nodes:
+
+
+        node_string = str(node)
+
+
+        if node_string in model.wv:
+
+
+            print(
+                "\nNode:",
+                node
+            )
+
+
+            similar_nodes = model.wv.most_similar(
+                node_string,
+                topn=5
+            )
+
+
+            for similar, score in similar_nodes:
+
+                print(
+                    " ->",
+                    similar,
+                    " similarity:",
+                    round(score,3)
+                )
+
 
     return model

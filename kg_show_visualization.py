@@ -1,108 +1,328 @@
-<<<<<<< HEAD
-from pyvis.network import Network
-import json
-import random
-
-def load_graph_json():
-    with open("graph.json", "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def build_visualization():
-
-    data = load_graph_json()
-
-    nodes = data["nodes"]
-    edges = data["edges"]
-
-    print("Total nodes:", len(nodes))
-    print("Total edges:", len(edges))
-
-    # 🔥 STEP 1: SAMPLE NODES (NEVER empty graph again)
-    sampled_nodes = random.sample(nodes, min(300, len(nodes)))
-    node_ids = set(n["id"] for n in sampled_nodes)
-
-    # 🔥 STEP 2: FILTER EDGES BASED ON SAMPLE
-    sampled_edges = [
-        e for e in edges
-        if e["source"] in node_ids and e["target"] in node_ids
-    ]
-
-    print("Sample nodes:", len(sampled_nodes))
-    print("Sample edges:", len(sampled_edges))
-
-    # 🔥 STEP 3: BUILD GRAPH
-    net = Network(height="750px", width="100%", directed=True, notebook=False)
-
-    for n in sampled_nodes:
-        net.add_node(n["id"], label=n.get("type", "node"))
-
-    for e in sampled_edges:
-        net.add_edge(e["source"], e["target"], label=e.get("relation", ""))
-
-    net.write_html("subgraph.html")
-    print("Saved: subgraph.html")
-
-
-if __name__ == "__main__":
-=======
 from pyvis.network import Network
 import json
 import random
 import networkx as nx
 
-def load_graph_json():
-    with open("graph.json", "r", encoding="utf-8") as f:
-        return json.load(f)
 
+
+# ----------------------------------------------------
+# LOAD EXPORTED KG
+# ----------------------------------------------------
+
+def load_graph_json():
+
+    with open(
+        "graph.json",
+        "r",
+        encoding="utf-8"
+    ) as file:
+
+        return json.load(file)
+
+
+
+# ----------------------------------------------------
+# CONNECTED SUBGRAPH SAMPLING
+# ----------------------------------------------------
+
+def create_connected_sample(nodes, edges, sample_size=300):
+
+
+    print("\n--- CONNECTED KG SAMPLING ---")
+
+
+    # Create NetworkX graph from JSON
+
+    G = nx.DiGraph()
+
+    for node in nodes:
+
+        G.add_node(
+            node["id"],
+            type=node.get(
+                "type",
+                "unknown"
+            )
+        )
+
+    for edge in edges:
+
+        G.add_edge(
+            edge["source"],
+            edge["target"],
+            relation=edge.get(
+                "relation",
+                ""
+            )
+        )
+
+
+    # Convert to undirected graph for connected traversal
+
+    UG = G.to_undirected()
+
+
+    # ------------------------------------------------
+    # Select important starting nodes
+    # ------------------------------------------------
+
+    degrees = dict(
+        UG.degree()
+    )
+
+
+    important_nodes = sorted(
+        degrees,
+        key=degrees.get,
+        reverse=True
+    )
+
+
+    # Pick high-connected starting node
+
+    start_node = important_nodes[0]
+
+
+    sampled_nodes = set()
+
+
+    # BFS neighbourhood expansion
+
+    queue = [start_node]
+
+
+    while queue and len(sampled_nodes) < sample_size:
+
+
+        current = queue.pop(0)
+
+
+        if current not in sampled_nodes:
+
+            sampled_nodes.add(
+                current
+            )
+
+
+            # Undirected neighbours
+
+            neighbours = list(
+                UG.neighbors(current)
+            )
+
+
+            random.shuffle(
+                neighbours
+            )
+
+
+            queue.extend(
+                neighbours[:20]
+            )
+
+
+
+    sampled_edges = [
+
+        e for e in edges
+
+        if e["source"] in sampled_nodes
+
+        and
+
+        e["target"] in sampled_nodes
+
+    ]
+
+
+
+    sampled_nodes_data = [
+
+        n for n in nodes
+
+        if n["id"] in sampled_nodes
+
+    ]
+
+
+
+    print(
+        "Sample nodes:",
+        len(sampled_nodes_data)
+    )
+
+
+    print(
+        "Sample edges:",
+        len(sampled_edges)
+    )
+
+
+    return (
+        sampled_nodes_data,
+        sampled_edges
+    )
+
+
+
+# ----------------------------------------------------
+# BUILD VISUALIZATION
+# ----------------------------------------------------
 
 def build_visualization():
 
+
     data = load_graph_json()
 
+
     nodes = data["nodes"]
+
     edges = data["edges"]
 
-    print("Total nodes:", len(nodes))
-    print("Total edges:", len(edges))
 
-    # -----------------------------
-    # STEP 1: BUILD TEMP NETWORKX GRAPH
-    # -----------------------------
-    G = nx.Graph()
 
-    for n in nodes:
-        G.add_node(n["id"])
+    print("\n--- KG VISUALIZATION ---")
 
-    for e in edges:
-        G.add_edge(e["source"], e["target"], relation=e.get("relation", ""))
 
-    # -----------------------------
-    # STEP 2: TAKE A CONNECTED SUBGRAPH (IMPORTANT FIX)
-    # -----------------------------
-    largest_cc = max(nx.connected_components(G), key=len)
-    sub_nodes = list(largest_cc)[:300]  # limit size safely
+    print(
+        "Total nodes:",
+        len(nodes)
+    )
 
-    subgraph = G.subgraph(sub_nodes)
 
-    print("Sample nodes:", subgraph.number_of_nodes())
-    print("Sample edges:", subgraph.number_of_edges())
+    print(
+        "Total edges:",
+        len(edges)
+    )
 
-    # -----------------------------
-    # STEP 3: VISUALIZE
-    # -----------------------------
-    net = Network(height="750px", width="100%", directed=True)
 
-    for node in subgraph.nodes():
-        net.add_node(node, label=str(node))
 
-    for u, v, attr in subgraph.edges(data=True):
-        net.add_edge(u, v, label=attr.get("relation", ""))
+    sampled_nodes, sampled_edges = create_connected_sample(
+        nodes,
+        edges,
+        sample_size=300
+    )
 
-    net.write_html("subgraph.html")
-    print("Saved: subgraph.html")
+
+    # ------------------------------------------------
+    # PyVis Network
+    # ------------------------------------------------
+
+
+    net = Network(
+
+        height="800px",
+
+        width="100%",
+
+        directed=True,
+
+        notebook=False
+
+    )
+
+
+    # ------------------------------------------------
+    # Node Colours
+    # ------------------------------------------------
+
+    colors = {
+
+        "customer": "#3498db",
+
+        "order": "#2ecc71",
+
+        "product": "#e74c3c",
+
+        "seller": "#f39c12",
+
+        "payment": "#9b59b6",
+
+        "category": "#1abc9c",
+
+        "state": "#34495e",
+
+        "unknown": "#95a5a6"
+    }
+
+
+    # ------------------------------------------------
+    # Add Nodes
+    # ------------------------------------------------
+
+
+    for node in sampled_nodes:
+
+
+        net.add_node(
+
+            node["id"],
+
+            label=str(node["id"])[:8],
+
+            color=colors.get(
+                node["type"],
+                "#95a5a6"
+            ),
+
+            title=(
+                "Entity: "
+                +
+                str(node["id"])
+                +
+                "\nType: "
+                +
+                node["type"]
+            )
+
+        )
+
+
+
+    # ------------------------------------------------
+    # Add Edges
+    # ------------------------------------------------
+
+
+    for edge in sampled_edges:
+
+
+        net.add_edge(
+
+            edge["source"],
+
+            edge["target"],
+
+            label=edge.get(
+                "relation",
+                ""
+            ),
+
+            title=edge.get(
+                "relation",
+                ""
+            )
+
+        )
+
+
+
+    # ------------------------------------------------
+    # Save HTML
+    # ------------------------------------------------
+
+
+    net.write_html(
+        "subgraph.html"
+    )
+
+
+    print(
+        "Saved visualization → subgraph.html"
+    )
+
 
 
 if __name__ == "__main__":
->>>>>>> fa32367 (updated kg structure and analysis functions)
+
     build_visualization()
