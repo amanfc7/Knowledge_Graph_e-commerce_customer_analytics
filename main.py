@@ -68,6 +68,8 @@ def main():
         products,
         payments,
         sellers,
+        reviews,
+        geo,
         category
     )
 

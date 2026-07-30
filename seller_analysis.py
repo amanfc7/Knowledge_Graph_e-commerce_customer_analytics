@@ -1,4 +1,6 @@
 import pandas as pd
+import os
+
 
 
 # ----------------------------------------------------
@@ -8,7 +10,19 @@ import pandas as pd
 
 def run_seller_analysis(order_items, payments):
 
+
     print("\n--- SELLER KG ANALYSIS (ECONOMIC RELATIONAL VIEW) ---")
+
+
+    # ------------------------------------------------
+    # Create results folder
+    # ------------------------------------------------
+
+    os.makedirs(
+        "results",
+        exist_ok=True
+    )
+
 
 
     # ------------------------------------------------
@@ -22,17 +36,23 @@ def run_seller_analysis(order_items, payments):
     )
 
 
+
     # ------------------------------------------------
     # 1. Seller Revenue Analysis
     # ------------------------------------------------
 
     seller_revenue = (
+
         merged
+
         .groupby("seller_id")["payment_value"]
+
         .sum()
+
         .sort_values(
             ascending=False
         )
+
     )
 
 
@@ -43,17 +63,23 @@ def run_seller_analysis(order_items, payments):
     )
 
 
+
     # ------------------------------------------------
     # 2. Seller Transaction Volume
     # ------------------------------------------------
 
     seller_transactions = (
+
         merged
+
         .groupby("seller_id")["order_id"]
+
         .nunique()
+
         .sort_values(
             ascending=False
         )
+
     )
 
 
@@ -70,12 +96,17 @@ def run_seller_analysis(order_items, payments):
     # ------------------------------------------------
 
     seller_diversity = (
+
         order_items
+
         .groupby("seller_id")["product_id"]
+
         .nunique()
+
         .sort_values(
             ascending=False
         )
+
     )
 
 
@@ -90,15 +121,51 @@ def run_seller_analysis(order_items, payments):
 
 
     # ------------------------------------------------
-    # 4. Economic Importance Score
+    # 4. Average Order Value Per Seller
     # ------------------------------------------------
+
+
+    seller_aov = (
+
+        merged
+
+        .groupby("seller_id")["payment_value"]
+
+        .mean()
+
+        .sort_values(
+            ascending=False
+        )
+
+    )
+
+
+
+    print(
+        "\nDERIVED FACT: Seller Average Order Value"
+    )
+
+
+    print(
+        seller_aov.head(10)
+    )
+
+
+
+    # ------------------------------------------------
+    # 5. Economic Importance Score
+    # ------------------------------------------------
+    #
     # Combines:
+    #
     # - revenue
     # - transaction activity
     # - product variety
+    # - average order value
     #
-    # This represents a KG derived feature
+    # Represents KG derived importance
     # ------------------------------------------------
+
 
 
     seller_score = pd.DataFrame({
@@ -112,33 +179,82 @@ def run_seller_analysis(order_items, payments):
 
 
         "product_diversity":
-        seller_diversity
+        seller_diversity,
+
+
+        "average_order_value":
+        seller_aov
 
     }).fillna(0)
 
 
 
-    # Normalized importance score
+    # ------------------------------------------------
+    # Normalization
+    # ------------------------------------------------
+
+
+    def normalize(column):
+
+        maximum = column.max()
+
+        if maximum == 0:
+
+            return column
+
+        return column / maximum
+
+
 
     seller_score["economic_score"] = (
 
-        seller_score["revenue"]
-        /
-        seller_score["revenue"].max()
+        normalize(
+            seller_score["revenue"]
+        )
 
         +
 
-        seller_score["transactions"]
-        /
-        seller_score["transactions"].max()
+        normalize(
+            seller_score["transactions"]
+        )
 
         +
 
-        seller_score["product_diversity"]
-        /
-        seller_score["product_diversity"].max()
+        normalize(
+            seller_score["product_diversity"]
+        )
 
-    ) / 3
+        +
+
+        normalize(
+            seller_score["average_order_value"]
+        )
+
+    ) / 4
+
+
+
+    # ------------------------------------------------
+    # Ranking
+    # ------------------------------------------------
+
+
+    seller_score = (
+
+        seller_score
+
+        .sort_values(
+            "economic_score",
+            ascending=False
+        )
+
+    )
+
+
+    seller_score["rank"] = range(
+        1,
+        len(seller_score)+1
+    )
 
 
 
@@ -148,19 +264,38 @@ def run_seller_analysis(order_items, payments):
 
 
     print(
-        seller_score
-        .sort_values(
-            "economic_score",
-            ascending=False
-        )
-        .head(10)
+        seller_score.head(10)
     )
 
 
 
     # ------------------------------------------------
-    # KG Interpretation
+    # Save Results
     # ------------------------------------------------
+
+
+    output_file = (
+        "results/"
+        "seller_performance_analysis.csv"
+    )
+
+
+    seller_score.to_csv(
+        output_file
+    )
+
+
+    print(
+        "\nSeller analysis saved:",
+        output_file
+    )
+
+
+
+    # ------------------------------------------------
+    # KG Business Interpretation
+    # ------------------------------------------------
+
 
     print(
         "\n--- KG BUSINESS INTERPRETATION ---"
@@ -178,9 +313,16 @@ def run_seller_analysis(order_items, payments):
         -> connected to many product entities
 
     High economic score sellers:
-        -> influential nodes in the commerce graph
+        -> influential nodes in commerce graph
+
+    These metrics can later power:
+        - Streamlit dashboards
+        - seller ranking views
+        - anomaly detection
+        - recommendation systems
     """
     )
+
 
 
     return seller_score
