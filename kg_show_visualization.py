@@ -1,103 +1,112 @@
-from pyvis.network import Network
 import json
-import random
-import networkx as nx
 import os
+import random
+
+import networkx as nx
+from pyvis.network import Network
 
 
-# ----------------------------------------------------
-# LOAD EXPORTED KG
-# ----------------------------------------------------
+# project paths
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RESULTS_DIR = os.path.join(BASE_DIR, "results")
+GRAPH_JSON_PATH = os.path.join(RESULTS_DIR, "graph.json")
+SAMPLE_GRAPH_PATH = os.path.join(RESULTS_DIR, "sample_graph.json")
+HTML_PATH = os.path.join(BASE_DIR, "subgraph.html")
 
+
+# visualization configuration
+SAMPLE_SIZE = 2000
+RANDOM_SEED = 42
+MAX_NEIGHBOURS_PER_NODE = 50
+
+NODE_COLOURS = {
+    "customer": "#4CAF50",
+    "seller": "#2196F3",
+    "order": "#FF9800",
+    "product": "#9C27B0",
+    "payment": "#F44336",
+    "category": "#009688",
+    "review": "#607D8B",
+    "sentiment": "#E91E63",
+    "city": "#795548",
+    "state": "#795548",
+    "geographic_cluster": "#00ACC1",
+}
+
+
+# load exported KG
 def load_graph_json():
+    if not os.path.exists(GRAPH_JSON_PATH):
+        raise FileNotFoundError(
+            f"KG export not found: {GRAPH_JSON_PATH}"
+        )
 
-    with open(
-        "graph.json",
-        "r",
-        encoding="utf-8"
-    ) as file:
-
+    with open(GRAPH_JSON_PATH, "r", encoding="utf-8") as file:
         return json.load(file)
 
 
-# ----------------------------------------------------
-# CONNECTED SUBGRAPH SAMPLING
-# ----------------------------------------------------
-
+# connected subgraph sampling
 def create_connected_sample(
     nodes,
     edges,
-    sample_size=300
+    sample_size=SAMPLE_SIZE,
 ):
-
     print("\n--- CONNECTED KG SAMPLING ---")
 
-    G = nx.DiGraph()
+    if not nodes:
+        print("No nodes available for visualization.")
+        return [], []
+
+    random.seed(RANDOM_SEED)
+    graph = nx.DiGraph()
 
     for node in nodes:
-
-        G.add_node(
-            node["id"],
-            **node
-        )
+        graph.add_node(node["id"], **node)
 
     for edge in edges:
-
-        G.add_edge(
+        graph.add_edge(
             edge["source"],
             edge["target"],
-            relation=edge.get(
-                "relation",
-                ""
-            )
+            relation=edge.get("relation", ""),
+            inferred=edge.get("inferred", False),
         )
 
-    UG = G.to_undirected()
+    undirected = graph.to_undirected()
+    degrees = dict(undirected.degree())
 
-    degrees = dict(UG.degree())
-
-    important_nodes = sorted(
-        degrees,
-        key=degrees.get,
-        reverse=True
-    )
-
-    start_node = important_nodes[0]
+    start_node = max(degrees, key=degrees.get)
 
     sampled_nodes = set()
-
     queue = [start_node]
 
     while queue and len(sampled_nodes) < sample_size:
-
         current = queue.pop(0)
 
-        if current not in sampled_nodes:
+        if current in sampled_nodes:
+            continue
 
-            sampled_nodes.add(current)
+        sampled_nodes.add(current)
 
-            neighbours = list(UG.neighbors(current))
+        neighbours = list(undirected.neighbors(current))
+        random.shuffle(neighbours)
 
-            random.shuffle(neighbours)
-
-            queue.extend(neighbours[:20])
+        for neighbour in neighbours[:MAX_NEIGHBOURS_PER_NODE]:
+            if neighbour not in sampled_nodes:
+                queue.append(neighbour)
 
     sampled_edges = [
-
-        e for e in edges
-
-        if e["source"] in sampled_nodes
-        and
-        e["target"] in sampled_nodes
-
+        edge
+        for edge in edges
+        if (
+            edge["source"] in sampled_nodes
+            and edge["target"] in sampled_nodes
+        )
     ]
 
     sampled_nodes_data = [
-
-        n for n in nodes
-
-        if n["id"] in sampled_nodes
-
+        node
+        for node in nodes
+        if node["id"] in sampled_nodes
     ]
 
     print("Sample nodes:", len(sampled_nodes_data))
@@ -106,263 +115,194 @@ def create_connected_sample(
     return sampled_nodes_data, sampled_edges
 
 
-# ----------------------------------------------------
-# NODE COLOURS
-# ----------------------------------------------------
+# build node tooltip
+def build_node_title(node):
+    node_type = node.get("type", "unknown")
 
-NODE_COLOURS = {
+    title = (
+        f"<b>ID</b>: {node.get('id', '')}<br>"
+        f"<b>Type</b>: {node_type}<br>"
+    )
 
-    "customer": "#4CAF50",
-    "seller": "#2196F3",
-    "order": "#FF9800",
-    "product": "#9C27B0",
-    "payment": "#F44336",
-    "category": "#009688",
-    "state": "#795548"
+    display_fields = [
+        ("display_name", "Name"),
+        ("city", "City"),
+        ("state", "State"),
+        ("status", "Status"),
+        ("payment_type", "Payment"),
+        ("value", "Value"),
+        ("sentiment", "Sentiment"),
+        ("nlp_sentiment", "NLP Sentiment"),
+    ]
 
-}
+    for field, label in display_fields:
+        if field in node:
+            title += (
+                f"<b>{label}</b>: "
+                f"{node[field]}<br>"
+            )
+
+    if node.get("inferred"):
+        title += (
+            "<b>Knowledge status</b>: "
+            "Inferred<br>"
+        )
+
+    return title
 
 
-# ----------------------------------------------------
-# BUILD VISUALIZATION
-# ----------------------------------------------------
-
+# build visualization
 def build_visualization():
-
     data = load_graph_json()
 
-    nodes = data["nodes"]
-    edges = data["edges"]
+    nodes = data.get("nodes", [])
+    edges = data.get("edges", [])
 
     print("\n--- KG VISUALIZATION ---")
-
     print("Total nodes:", len(nodes))
     print("Total edges:", len(edges))
 
     sampled_nodes, sampled_edges = create_connected_sample(
         nodes,
         edges,
-        sample_size=300
+        SAMPLE_SIZE,
     )
 
-    os.makedirs(
-        "results",
-        exist_ok=True
-    )
+    os.makedirs(RESULTS_DIR, exist_ok=True)
 
-    with open(
-        "results/sample_graph.json",
-        "w",
-        encoding="utf-8"
-    ) as f:
-
+    with open(SAMPLE_GRAPH_PATH, "w", encoding="utf-8") as file:
         json.dump(
             {
                 "nodes": sampled_nodes,
-                "edges": sampled_edges
+                "edges": sampled_edges,
             },
-            f,
-            indent=4
+            file,
+            indent=2,
+            ensure_ascii=False,
         )
 
     net = Network(
-
         height="850px",
         width="100%",
         directed=True,
         notebook=False,
         bgcolor="#ffffff",
-        font_color="black"
-
+        font_color="black",
     )
-
-    # Better physics
 
     net.barnes_hut(
         gravity=-25000,
         central_gravity=0.2,
         spring_length=180,
-        spring_strength=0.04
+        spring_strength=0.04,
     )
 
-    # ------------------------------------------------
-    # Add Nodes
-    # ------------------------------------------------
-
+    # add nodes
     for node in sampled_nodes:
-
-        node_type = node.get(
-            "type",
-            "unknown"
-        )
-
-        colour = NODE_COLOURS.get(
-            node_type,
-            "#999999"
-        )
-
-        title = f"""
-        <b>ID</b>: {node['id']}<br>
-        <b>Type</b>: {node_type}<br>
-        """
-
-        if "city" in node:
-            title += f"<b>City</b>: {node['city']}<br>"
-
-        if "state" in node:
-            title += f"<b>State</b>: {node['state']}<br>"
-
-        if "status" in node:
-            title += f"<b>Status</b>: {node['status']}<br>"
-
-        if "payment_type" in node:
-            title += f"<b>Payment</b>: {node['payment_type']}<br>"
-
-        if "value" in node:
-            title += f"<b>Value</b>: {node['value']}<br>"
+        node_type = node.get("type", "unknown")
+        colour = NODE_COLOURS.get(node_type, "#999999")
 
         net.add_node(
-
             node["id"],
-
             label=node_type,
-
-            title=title,
-
+            title=build_node_title(node),
             color=colour,
-
-            size=18
-
+            size=18,
         )
 
-    # ------------------------------------------------
-    # Add Edges
-    # ------------------------------------------------
-
+    # add edges
     for edge in sampled_edges:
+        inferred = edge.get("inferred", False)
+
+        edge_options = {
+            "label": edge.get("relation", ""),
+            "title": edge.get("relation", ""),
+            "arrows": "to",
+        }
+
+        if inferred:
+            edge_options.update({
+                "dashes": True,
+                "width": 2,
+            })
+
+            edge_options["title"] = (
+                f"{edge.get('relation', '')}"
+                "<br><b>Inferred by logical reasoning</b>"
+            )
 
         net.add_edge(
-
             edge["source"],
             edge["target"],
-
-            label=edge.get(
-                "relation",
-                ""
-            ),
-
-            title=edge.get(
-                "relation",
-                ""
-            ),
-
-            arrows="to"
-
+            **edge_options,
         )
 
-    # ------------------------------------------------
-    # Controls
-    # ------------------------------------------------
-
+    # visualization controls
     net.show_buttons(
         filter_=[
             "physics",
             "nodes",
-            "edges"
+            "edges",
         ]
     )
 
-    # ------------------------------------------------
-    # Interactive JavaScript
-    # ------------------------------------------------
-
-    net.set_options("""
-    var options = {
-
-      "interaction":{
-
-        "hover":true,
-        "navigationButtons":true,
-        "keyboard":true,
-        "multiselect":true
-
-      },
-
-      "physics":{
-
-        "enabled":true
-
-      }
-
-    }
-    """)
+    # interactive behaviour
+    net.set_options(
+        """
+        var options = {
+            "interaction": {
+                "hover": true,
+                "navigationButtons": true,
+                "keyboard": true,
+                "multiselect": true
+            },
+            "physics": {
+                "enabled": true
+            }
+        }
+        """
+    )
 
     html = net.generate_html()
 
+    # interactive JavaScript
     custom_js = """
+    <script>
+    network.on("doubleClick", function(params) {
+        if (params.nodes.length > 0) {
+            var node = params.nodes[0];
+            var connected = network.getConnectedNodes(node);
 
-<script>
+            network.selectNodes(connected);
 
-network.on("doubleClick", function(params){
+            network.fit({
+                nodes: connected.concat([node]),
+                animation: true
+            });
+        }
+    });
 
-    if(params.nodes.length > 0){
-
-        var node = params.nodes[0];
-
-        var connected = network.getConnectedNodes(node);
-
-        network.selectNodes(connected);
-
-        network.fit({
-
-            nodes: connected.concat([node]),
-
-            animation:true
-
-        });
-
-    }
-
-});
-
-network.on("click", function(params){
-
-    if(params.nodes.length>0){
-
-        var node=params.nodes[0];
-
-        console.log(node);
-
-    }
-
-});
-
-</script>
-
-"""
+    network.on("click", function(params) {
+        if (params.nodes.length > 0) {
+            var node = params.nodes[0];
+            console.log("Selected KG node:", node);
+        }
+    });
+    </script>
+    """
 
     html = html.replace(
         "</body>",
-        custom_js + "</body>"
+        custom_js + "</body>",
     )
 
-    with open(
-        "subgraph.html",
-        "w",
-        encoding="utf-8"
-    ) as f:
+    with open(HTML_PATH, "w", encoding="utf-8") as file:
+        file.write(html)
 
-        f.write(html)
-
-    print(
-        "Saved visualization → subgraph.html"
-    )
-
-    print(
-        "Saved sampled graph → results/sample_graph.json"
-    )
+    print(f"Saved visualization: {HTML_PATH}")
+    print(f"Saved sampled graph: {SAMPLE_GRAPH_PATH}")
 
 
+# main
 if __name__ == "__main__":
-
     build_visualization()

@@ -1,391 +1,200 @@
+
 import json
 import os
 
 
+# knowledge graph exporter
+# exports the NetworkX KG for visualization, Streamlit,
+# external tools and downstream graph analysis
 
-# ----------------------------------------------------
-# KNOWLEDGE GRAPH EXPORTER
-# JSON FORMAT FOR:
-# - Visualization
-# - GNN Processing
-# - External KG Tools
-# - Streamlit Application
-# ----------------------------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RESULTS_DIR = os.path.join(BASE_DIR, "results")
 
 
-
-def export_graph_to_json(
-    G,
-    filename="results/graph.json"
-):
-
-
+def export_graph_to_json(G, filename=None):
     print(
         "\n--- EXPORTING KG FOR DOWNSTREAM ANALYSIS ---"
     )
 
+    # output path
+    if filename is None:
+        filename = os.path.join(
+            RESULTS_DIR,
+            "graph.json",
+        )
 
-
-    # ==================================================
-    # CREATE OUTPUT DIRECTORY
-    # ==================================================
-
-
-    folder = os.path.dirname(
-        filename
-    )
-
+    folder = os.path.dirname(filename)
 
     if folder:
-
-
         os.makedirs(
             folder,
-            exist_ok=True
+            exist_ok=True,
         )
 
-
-
-    # ==================================================
-    # GRAPH METADATA
-    # ==================================================
-
+    # graph metadata
+    inferred_edges = sum(
+        1
+        for _, _, attr in G.edges(data=True)
+        if attr.get("inferred", False)
+    )
 
     metadata = {
-
-
-        "graph_type":
-
-        "Olist E-commerce Knowledge Graph",
-
-
-        "nodes":
-
-        G.number_of_nodes(),
-
-
-        "edges":
-
-        G.number_of_edges(),
-
-
-        "directed":
-
-        True
-
+        "graph_type": (
+            "Olist E-commerce Knowledge Graph"
+        ),
+        "representation": (
+            "Property-graph-style NetworkX graph"
+        ),
+        "nodes": G.number_of_nodes(),
+        "edges": G.number_of_edges(),
+        "explicit_edges": (
+            G.number_of_edges() - inferred_edges
+        ),
+        "inferred_edges": inferred_edges,
+        "directed": True,
+        "source": (
+            "Olist Brazilian E-Commerce Dataset"
+        ),
+        "export_format": "JSON",
+        "purpose": (
+            "Visualization, Streamlit service "
+            "and downstream graph analysis"
+        ),
     }
-
-
 
     data = {
-
-
-        "metadata":
-
-        metadata,
-
-
-        "nodes":[],
-
-        "edges":[]
-
+        "metadata": metadata,
+        "nodes": [],
+        "edges": [],
     }
 
-
-
-    # ==================================================
-    # EXPORT NODES
-    # ==================================================
-
-
+    # export nodes
     for node, attr in G.nodes(data=True):
-
-
         node_data = {
-
-
-            "id":
-
-            str(node),
-
-
-            "type":
-
-            attr.get(
-
+            "id": str(node),
+            "type": attr.get(
                 "type",
-
-                "unknown"
-
+                "unknown",
             ),
-
-
-
-            "schema_type":
-
-            attr.get(
-
+            "schema_type": attr.get(
                 "schema_type",
-
-                "unknown"
-
+                "unknown",
             ),
-
-
-
-            "display_name":
-
-            attr.get(
-
+            "display_name": attr.get(
                 "display_name",
-
-                str(node)
-
-            )
-
-        }
-
-
-
-        # ----------------------------------------------
-        # Export all useful attributes
-        # ----------------------------------------------
-
-
-        ignored = [
-
-            "type",
-
-            "schema_type",
-
-            "display_name"
-
-        ]
-
-
-
-        for key,value in attr.items():
-
-
-            if key not in ignored:
-
-
-                try:
-
-                    node_data[key]=value
-
-
-                except:
-
-                    node_data[key]=str(value)
-
-
-
-        data["nodes"].append(
-
-            node_data
-
-        )
-
-
-
-    # ==================================================
-    # EXPORT EDGES
-    # ==================================================
-
-
-    for source,target,attr in G.edges(data=True):
-
-
-        edge_data = {
-
-
-            "source":
-
-            str(source),
-
-
-
-            "target":
-
-            str(target),
-
-
-
-            "relation":
-
-            attr.get(
-
-                "relation",
-
-                "CONNECTED"
-
+                str(node),
             ),
-
-
-
-            "weight":
-
-            attr.get(
-
-                "weight",
-
-                1.0
-
-            )
-
         }
 
+        ignored = {
+            "type",
+            "schema_type",
+            "display_name",
+        }
 
+        for key, value in attr.items():
+            if key not in ignored:
+                node_data[key] = value
 
-        data["edges"].append(
+        data["nodes"].append(node_data)
 
-            edge_data
+    # export edges
+    for source, target, attr in G.edges(data=True):
+        edge_data = {
+            "source": str(source),
+            "target": str(target),
+            "relation": attr.get(
+                "relation",
+                "CONNECTED",
+            ),
+            "weight": attr.get(
+                "weight",
+                1.0,
+            ),
+            "inferred": attr.get(
+                "inferred",
+                False,
+            ),
+        }
 
-        )
+        # preserve logical reasoning provenance
+        if attr.get("inferred", False):
+            edge_data["inference_rule"] = attr.get(
+                "inference_rule"
+            )
+            edge_data["inference_iteration"] = attr.get(
+                "inference_iteration"
+            )
+            edge_data["knowledge_source"] = attr.get(
+                "source",
+                "logical_forward_chaining",
+            )
+        else:
+            edge_data["knowledge_source"] = attr.get(
+                "source",
+                "source_dataset",
+            )
 
+        data["edges"].append(edge_data)
 
-
-    # ==================================================
-    # SAVE GRAPH JSON
-    # ==================================================
-
-
+    # save graph JSON
     with open(
-
         filename,
-
         "w",
-
-        encoding="utf-8"
-
+        encoding="utf-8",
     ) as file:
-
-
         json.dump(
-
             data,
-
             file,
-
-            indent=4,
-
-            default=str
-
+            indent=2,
+            ensure_ascii=False,
+            default=str,
         )
 
-
-
-    # ==================================================
-    # SAVE METADATA FILE
-    # ==================================================
-
-
-    metadata_file = (
-
-        os.path.dirname(filename)
-
-        +
-
-        "/graph_metadata.json"
-
+    # save metadata
+    metadata_file = os.path.join(
+        folder,
+        "graph_metadata.json",
     )
-
 
     with open(
-
         metadata_file,
-
         "w",
-
-        encoding="utf-8"
-
+        encoding="utf-8",
     ) as file:
-
-
         json.dump(
-
             metadata,
-
             file,
-
-            indent=4
-
+            indent=2,
+            ensure_ascii=False,
         )
 
-
-
-    # ==================================================
-    # FILE INFORMATION
-    # ==================================================
-
-
+    # file information
     file_size = (
-
         os.path.getsize(filename)
-
-        /
-
-        (1024*1024)
-
+        / (1024 * 1024)
     )
-
-
 
     print(
-
-        f"Graph exported → {filename}"
-
+        f"Graph exported: {filename}"
     )
-
-
-
     print(
-
-        "Metadata exported →",
-
-        metadata_file
-
+        f"Metadata exported: {metadata_file}"
     )
-
-
-
     print(
-
-        "File size:",
-
-        round(
-
-            file_size,
-
-            2
-
-        ),
-
-        "MB"
-
+        f"File size: {file_size:.2f} MB"
     )
-
-
-
     print(
-
-        "Exported nodes:",
-
-        len(data["nodes"])
-
+        f"Exported nodes: {len(data['nodes']):,}"
     )
-
-
-
     print(
-
-        "Exported edges:",
-
-        len(data["edges"])
-
+        f"Exported edges: {len(data['edges']):,}"
     )
-
-
+    print(
+        f"Explicit edges: {metadata['explicit_edges']:,}"
+    )
+    print(
+        f"Inferred edges: {metadata['inferred_edges']:,}"
+    )
 
     return data

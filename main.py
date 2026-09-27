@@ -1,41 +1,27 @@
-from pyexpat import model
-
 from data_loader import load_data
-
 from build_knowledge_graph import build_graph
 from kg_analysis import run_analysis
 
 from ml_node2vec import run_node2vec
-
 from nlp_sentiment import run_sentiment_analysis
 from seller_analysis import run_seller_analysis
 from geo_analysis import run_geo_analysis
 
 from kg_visualizer import export_graph_to_json
 from kg_show_visualization import build_visualization
+from data_model_comparison import run_data_model_comparison
+from kg_reasoning import run_kg_reasoning
 
-
-# NEW KG EVALUATION MODULES
 from graph_metrics import run_graph_metrics
 from graph_queries import run_graph_queries
-# from community_detection import run_community_detection
 from embedding_evaluation import evaluate_embeddings
 
 
 def main():
+    print(" KG PIPELINE STARTING ")
 
-    print("\n==============================")
-    print(" KGMS PIPELINE STARTING ")
-    print("==============================")
-
-
-    # =====================================================
-    # 1. DATA INGESTION LAYER
-    # LO1 - Data acquisition
-    # LO2 - Data preprocessing
-    # =====================================================
-
-    print("\n--- LOADING KG DATA LAYER ---")
+    # 1. load source data
+    print("\n--- Loading Data... ---")
 
     (
         customers,
@@ -46,20 +32,11 @@ def main():
         sellers,
         reviews,
         geo,
-        category
-
+        category,
     ) = load_data()
 
-
-
-    # =====================================================
-    # 2. KNOWLEDGE GRAPH CONSTRUCTION
-    # LO7 - Knowledge Representation
-    # LO8 - Data Integration
-    # =====================================================
-
+    # 2. build the initial knowledge graph
     print("\n--- BUILDING KNOWLEDGE GRAPH ---")
-
 
     G = build_graph(
         customers,
@@ -70,128 +47,126 @@ def main():
         sellers,
         reviews,
         geo,
-        category
+        category,
     )
 
+    print(f"\nInitial KG nodes: {G.number_of_nodes():,}")
+    print(f"Initial KG edges: {G.number_of_edges():,}")
 
-    print("\n--- KG SUMMARY ---")
-    print("Nodes:", G.number_of_nodes())
-    print("Edges:", G.number_of_edges())
+    # 3. data model comparison
+    print("\n--- DATA MODEL COMPARISON ---")
+    run_data_model_comparison()
 
-
-
-    # =====================================================
-    # 3. GRAPH STRUCTURE ANALYSIS
-    # LO5 - Graph modelling
-    # LO6 - Interpretation
-    # =====================================================
-
-    run_graph_metrics(G)
-
-
-
-    # =====================================================
-    # 4. KG REASONING + BUSINESS ANALYTICS
-    # LO4 - Data Analytics
-    # LO6 - Insights
-    # =====================================================
+    # 4. business analytics
+    print("\n--- BUSINESS ANALYTICS ---")
 
     run_analysis(
         customers,
         orders,
         order_items,
         products,
-        payments
+        payments,
     )
 
+    # 5. NLP-based KG enrichment
+    print("\n--- NLP KG ENRICHMENT ---")
 
+    nodes_before_nlp = G.number_of_nodes()
+    edges_before_nlp = G.number_of_edges()
 
-    # =====================================================
-    # 5. SYMBOLIC KG QUERIES
-    # LO7 - Reasoning over Knowledge Graph
-    # =====================================================
-
-    run_graph_queries(G)
-
-
-
-    # =====================================================
-    # 6. COMMUNITY DISCOVERY
-    # Graph-based pattern discovery
-    # =====================================================
-
-    # run_community_detection(G)
-
-
-
-    # =====================================================
-    # 7. MACHINE LEARNING ON GRAPH
-    # LO9 - Machine Learning
-    # =====================================================
-
-    model = run_node2vec(G)
-
-
-    evaluate_embeddings(
-        model
+    run_sentiment_analysis(
+        reviews,
+        G,
     )
 
+    print("\nNLP KG evolution:")
+    print(
+        f"Nodes: {nodes_before_nlp:,} → "
+        f"{G.number_of_nodes():,}"
+    )
+    print(
+        f"Edges: {edges_before_nlp:,} → "
+        f"{G.number_of_edges():,}"
+    )
 
-
-    # =====================================================
-    # 8. NLP KNOWLEDGE ENRICHMENT
-    # LO11 - Applied AI
-    # =====================================================
-    
-    run_sentiment_analysis(reviews)
-
-
-
-    # =====================================================
-    # 9. SELLER ECONOMIC ANALYSIS
-    # Financial KG layer
-    # =====================================================
+    # 6. seller analysis
+    print("\n--- SELLER ANALYSIS ---")
 
     run_seller_analysis(
         order_items,
-        payments
+        payments,
     )
 
-
-
-    # =====================================================
-    # 10. GEO-SPATIAL ANALYSIS
-    # =====================================================
+    # 7. geographic KG enrichment
+    print("\n--- GEO ENRICHMENT ---")
 
     run_geo_analysis(
-        geo
+        geo,
+        G,
     )
 
+    print(
+        f"\nKG after enrichment: "
+        f"{G.number_of_nodes():,} nodes, "
+        f"{G.number_of_edges():,} edges"
+    )
 
+    # 8. logical KG reasoning
+    print("\n--- KG LOGICAL REASONING ---")
 
-    # =====================================================
-    # 11. EXPORT KNOWLEDGE GRAPH
-    # LO12 - System implementation
-    # =====================================================
+    run_kg_reasoning(
+        G,
+    )
+
+    print(
+        f"\nKG after reasoning: "
+        f"{G.number_of_nodes():,} nodes, "
+        f"{G.number_of_edges():,} edges"
+    )
+
+    # 9. final KG validation
+    print("\n--- FINAL KG METRICS AND VALIDATION ---")
+
+    run_graph_metrics(
+        G,
+    )
+
+    # 10. Node2Vec representation of the evolved KG
+    print("\n--- NODE2VEC REPRESENTATION ---")
+
+    model = run_node2vec(
+        G,
+    )
+
+    evaluate_embeddings(
+        model,
+        G,
+    )
+
+    # 11. analytical query service
+    print("\n--- KG ANALYTICAL QUERY SERVICE ---")
+
+    run_graph_queries(
+        G,
+        interactive=False,
+    )
+
+    # 12. export the final evolved KG
+    print("\n--- EXPORTING KNOWLEDGE GRAPH ---")
 
     export_graph_to_json(
-        G
+        G,
     )
 
-
-
-    # =====================================================
-    # 12. VISUALIZATION
-    # =====================================================
+    # 13. visualization
+    print("\n--- BUILDING VISUALIZATION ---")
 
     build_visualization()
 
-
-
+    # complete
     print("\n==============================")
-    print(" PIPELINE COMPLETED SUCCESSFULLY ")
+    print(" PIPELINE COMPLETED SUCCESSFULLY")
     print("==============================")
-
 
 
 if __name__ == "__main__":
