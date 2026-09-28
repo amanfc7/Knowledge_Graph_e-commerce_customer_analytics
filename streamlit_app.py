@@ -1628,7 +1628,7 @@ def main():
         "Select a service",
         [
             "KG Service Overview",
-            "Ask the Knowledge Graph",
+            "Ask (Query) the Knowledge Graph",
             "Graph Explorer",
             "Analytics",
             "Search Entity",
@@ -1674,7 +1674,7 @@ def main():
 
         st.markdown(
             """
-            **Ask the Knowledge Graph**
+            **Ask (Query) the Knowledge Graph**
 
             Ask deterministic analytical questions about
             customers, spending, orders, products, categories,
@@ -1707,9 +1707,9 @@ def main():
         display_graph_legend()
 
     # analytical query service
-    elif page == "Ask the Knowledge Graph":
+    elif page == "Ask (Query) the Knowledge Graph":
         st.header(
-            ":material/search: Ask the Knowledge Graph"
+            ":material/search: Ask (Query) the Knowledge Graph"
         )
 
         st.write(
