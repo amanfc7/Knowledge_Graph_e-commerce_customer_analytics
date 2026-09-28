@@ -154,11 +154,15 @@ def search_nodes(index, query, limit=50):
 def load_results():
     result_files = [
         "customer_clv.csv",
+        "financial_kg_customer_profiles.csv",
         "repeat_customers.csv",
         "product_popularity.csv",
         "category_sales.csv",
         "seller_performance_analysis.csv",
         "monthly_revenue.csv",
+        "payment_statistics.csv",
+        "review_sentiment_analysis.csv",
+        "sentiment_statistics.csv",
     ]
 
     results = {}
@@ -180,11 +184,17 @@ def load_results():
 def get_result_title(filename):
     titles = {
         "customer_clv.csv": "Historical Customer Spending",
+        "financial_kg_customer_profiles.csv": (
+            "Financial KG Customer Profiles"
+        ),
         "repeat_customers.csv": "Repeat Customers",
         "product_popularity.csv": "Product Popularity",
         "category_sales.csv": "Category Sales",
         "seller_performance_analysis.csv": "Seller Performance Analysis",
         "monthly_revenue.csv": "Monthly Payment Value",
+        "payment_statistics.csv": "Payment Statistics",
+        "review_sentiment_analysis.csv": "Review Sentiment Analysis",
+        "sentiment_statistics.csv": "Sentiment Statistics",
     }
 
     return titles.get(
@@ -376,8 +386,8 @@ def create_entity_selection_map(G, nodes):
 # graph subgraphs
 def build_representative_subgraph(
     G,
-    max_nodes=1000,
-    max_depth=10,
+    max_nodes=10000,
+    max_depth=20,
     random_seed=None,
 ):
     if G.number_of_nodes() == 0:
@@ -460,8 +470,12 @@ def build_representative_subgraph(
                 G.nodes[node].get("type", "unknown")
             )
             degree = G.degree(node)
-            diversity_bonus = 10000 if node_type in missing_types else 0
-            type_bonus = 100 if node_type in preferred_types else 0
+            diversity_bonus = (
+                10000 if node_type in missing_types else 0
+            )
+            type_bonus = (
+                100 if node_type in preferred_types else 0
+            )
             degree_score = min(degree, 500)
             random_jitter = rng.random() * 250
 
@@ -516,7 +530,9 @@ def build_representative_subgraph(
         )
         frontier = set(chosen)
 
-    return G.subgraph(selected_nodes).copy()
+    return G.subgraph(
+        list(selected_nodes)[:max_nodes]
+    ).copy()
 
 
 def build_local_subgraph(
@@ -528,6 +544,7 @@ def build_local_subgraph(
     if selected_node not in G:
         return nx.DiGraph()
 
+    max_nodes = max(1, int(max_nodes))
     selected_nodes = {selected_node}
     frontier = {selected_node}
 
@@ -558,7 +575,9 @@ def build_local_subgraph(
         selected_nodes.update(selected_frontier)
         frontier = selected_frontier
 
-    return G.subgraph(selected_nodes).copy()
+    return G.subgraph(
+        list(selected_nodes)[:max_nodes]
+    ).copy()
 
 
 def build_entity_type_overview_subgraph(
@@ -569,6 +588,7 @@ def build_entity_type_overview_subgraph(
     if G.number_of_nodes() == 0:
         return nx.DiGraph()
 
+    max_nodes = max(1, int(max_nodes))
     candidates = get_entities_by_type(G, entity_type)
 
     if not candidates:
@@ -614,7 +634,9 @@ def build_entity_type_overview_subgraph(
         selected_nodes.update(next_frontier)
         frontier = next_frontier
 
-    return G.subgraph(selected_nodes).copy()
+    return G.subgraph(
+        list(selected_nodes)[:max_nodes]
+    ).copy()
 
 
 # pyvis
@@ -773,7 +795,7 @@ def create_pyvis_graph(
 
 
 # relationship and entity information
-def get_relationship_table(G, selected_node):
+def get_relationship_table(G, selected_node, limit=None):
     if selected_node not in G:
         return pd.DataFrame()
 
@@ -813,7 +835,12 @@ def get_relationship_table(G, selected_node):
             "connected_name": get_node_label(G, source),
         })
 
-    return pd.DataFrame(rows)
+    dataframe = pd.DataFrame(rows)
+
+    if limit and not dataframe.empty:
+        dataframe = dataframe.head(limit)
+
+    return dataframe
 
 
 def get_entity_information(G, selected_node):
@@ -870,6 +897,695 @@ def display_graph_legend():
                 """,
                 unsafe_allow_html=True,
             )
+
+
+# analytics helpers
+def count_nodes_by_type(G, node_type):
+    return sum(
+        1
+        for node in G.nodes()
+        if G.nodes[node].get("type") == node_type
+    )
+
+
+def payment_total_from_graph(G):
+    total = 0.0
+
+    for node in G.nodes():
+        if G.nodes[node].get("type") != "payment":
+            continue
+
+        try:
+            total += float(G.nodes[node].get("value", 0))
+        except (TypeError, ValueError):
+            continue
+
+    return total
+
+
+def order_payment_value(G, order):
+    total = 0.0
+
+    for payment in G.successors(order):
+        edge = G.get_edge_data(order, payment, default={})
+
+        if edge.get("relation") != "HAS_PAYMENT":
+            continue
+
+        try:
+            total += float(G.nodes[payment].get("value", 0))
+        except (TypeError, ValueError):
+            pass
+
+    return total
+
+
+def get_customer_analytics(G, node):
+    orders = [
+        target
+        for target in G.successors(node)
+        if G.nodes[target].get("type") == "order"
+        and G.get_edge_data(node, target, {}).get("relation") == "PLACED"
+    ]
+
+    products = set()
+    categories = set()
+    sellers = set()
+    reviews = set()
+    sentiments = set()
+    spending = 0.0
+
+    for order in orders:
+        spending += order_payment_value(G, order)
+
+        for product in G.successors(order):
+            edge = G.get_edge_data(order, product, default={})
+
+            if edge.get("relation") != "CONTAINS":
+                continue
+
+            products.add(product)
+
+            for category in G.successors(product):
+                edge = G.get_edge_data(product, category, default={})
+
+                if edge.get("relation") == "BELONGS_TO":
+                    categories.add(category)
+
+            for seller in G.successors(product):
+                edge = G.get_edge_data(product, seller, default={})
+
+                if edge.get("relation") == "OFFERED_BY":
+                    sellers.add(seller)
+
+        for review in G.successors(order):
+            edge = G.get_edge_data(order, review, default={})
+
+            if edge.get("relation") != "HAS_REVIEW":
+                continue
+
+            reviews.add(review)
+
+            for sentiment in G.successors(review):
+                sentiment_edge = G.get_edge_data(
+                    review,
+                    sentiment,
+                    default={},
+                )
+
+                if sentiment_edge.get("relation") == "HAS_SENTIMENT":
+                    sentiments.add(sentiment)
+
+    summary = pd.DataFrame([{
+        "customer": get_node_label(G, node),
+        "customer_id": G.nodes[node].get("unique_id", node),
+        "orders": len(orders),
+        "products": len(products),
+        "categories": len(categories),
+        "sellers": len(sellers),
+        "reviews": len(reviews),
+        "total_payment_value": spending,
+        "average_order_value": (
+            spending / len(orders) if orders else 0.0
+        ),
+    }])
+
+    sentiment_data = pd.DataFrame([
+        {"sentiment": get_node_label(G, sentiment)}
+        for sentiment in sentiments
+    ])
+
+    return summary, sentiment_data
+
+
+def get_product_analytics(G, node):
+    orders = set()
+    sellers = set()
+    categories = set()
+    customers = set()
+
+    for source in G.predecessors(node):
+        edge = G.get_edge_data(source, node, default={})
+        source_type = G.nodes[source].get("type")
+
+        if source_type == "order" and edge.get("relation") == "CONTAINS":
+            orders.add(source)
+
+            for customer in G.predecessors(source):
+                customer_edge = G.get_edge_data(
+                    customer,
+                    source,
+                    default={},
+                )
+
+                if (
+                    G.nodes[customer].get("type") == "customer"
+                    and customer_edge.get("relation") == "PLACED"
+                ):
+                    customers.add(customer)
+
+    for target in G.successors(node):
+        edge = G.get_edge_data(node, target, default={})
+
+        if edge.get("relation") == "OFFERED_BY":
+            sellers.add(target)
+
+        if edge.get("relation") == "BELONGS_TO":
+            categories.add(target)
+
+    summary = pd.DataFrame([{
+        "product": get_node_label(G, node),
+        "product_id": G.nodes[node].get("product_id", node),
+        "orders": len(orders),
+        "customers": len(customers),
+        "sellers": len(sellers),
+        "categories": len(categories),
+    }])
+
+    return summary
+
+
+def get_seller_analytics(G, node):
+    products = set()
+    orders = set()
+    customers = set()
+
+    for product in G.predecessors(node):
+        edge = G.get_edge_data(product, node, default={})
+
+        if (
+            G.nodes[product].get("type") == "product"
+            and edge.get("relation") == "OFFERED_BY"
+        ):
+            products.add(product)
+
+            for order in G.predecessors(product):
+                order_edge = G.get_edge_data(
+                    order,
+                    product,
+                    default={},
+                )
+
+                if (
+                    G.nodes[order].get("type") == "order"
+                    and order_edge.get("relation") == "CONTAINS"
+                ):
+                    orders.add(order)
+
+                    for customer in G.predecessors(order):
+                        customer_edge = G.get_edge_data(
+                            customer,
+                            order,
+                            default={},
+                        )
+
+                        if (
+                            G.nodes[customer].get("type") == "customer"
+                            and customer_edge.get("relation") == "PLACED"
+                        ):
+                            customers.add(customer)
+
+    summary = pd.DataFrame([{
+        "seller": get_node_label(G, node),
+        "seller_id": G.nodes[node].get("seller_id", node),
+        "products": len(products),
+        "orders": len(orders),
+        "customers": len(customers),
+    }])
+
+    return summary
+
+
+def get_category_analytics(G, node):
+    products = set()
+    orders = set()
+    customers = set()
+    sellers = set()
+
+    for product in G.predecessors(node):
+        edge = G.get_edge_data(product, node, default={})
+
+        if (
+            G.nodes[product].get("type") != "product"
+            or edge.get("relation") != "BELONGS_TO"
+        ):
+            continue
+
+        products.add(product)
+
+        for seller in G.successors(product):
+            seller_edge = G.get_edge_data(
+                product,
+                seller,
+                default={},
+            )
+
+            if seller_edge.get("relation") == "OFFERED_BY":
+                sellers.add(seller)
+
+        for order in G.predecessors(product):
+            order_edge = G.get_edge_data(
+                order,
+                product,
+                default={},
+            )
+
+            if (
+                G.nodes[order].get("type") == "order"
+                and order_edge.get("relation") == "CONTAINS"
+            ):
+                orders.add(order)
+
+                for customer in G.predecessors(order):
+                    customer_edge = G.get_edge_data(
+                        customer,
+                        order,
+                        default={},
+                    )
+
+                    if (
+                        G.nodes[customer].get("type") == "customer"
+                        and customer_edge.get("relation") == "PLACED"
+                    ):
+                        customers.add(customer)
+
+    summary = pd.DataFrame([{
+        "category": get_node_label(G, node),
+        "products": len(products),
+        "orders": len(orders),
+        "customers": len(customers),
+        "sellers": len(sellers),
+    }])
+
+    return summary
+
+
+def get_order_analytics(G, node):
+    customer = None
+    products = set()
+    sellers = set()
+    payments = []
+    reviews = set()
+    sentiments = set()
+
+    for source in G.predecessors(node):
+        edge = G.get_edge_data(source, node, default={})
+
+        if (
+            G.nodes[source].get("type") == "customer"
+            and edge.get("relation") == "PLACED"
+        ):
+            customer = source
+            break
+
+    for target in G.successors(node):
+        edge = G.get_edge_data(node, target, default={})
+        target_type = G.nodes[target].get("type")
+
+        if edge.get("relation") == "CONTAINS":
+            products.add(target)
+
+            for seller in G.successors(target):
+                seller_edge = G.get_edge_data(
+                    target,
+                    seller,
+                    default={},
+                )
+
+                if seller_edge.get("relation") == "OFFERED_BY":
+                    sellers.add(seller)
+
+        elif (
+            edge.get("relation") == "HAS_PAYMENT"
+            and target_type == "payment"
+        ):
+            try:
+                payments.append(float(
+                    G.nodes[target].get("value", 0)
+                ))
+            except (TypeError, ValueError):
+                pass
+
+        elif edge.get("relation") == "HAS_REVIEW":
+            reviews.add(target)
+
+            for sentiment in G.successors(target):
+                sentiment_edge = G.get_edge_data(
+                    target,
+                    sentiment,
+                    default={},
+                )
+
+                if sentiment_edge.get("relation") == "HAS_SENTIMENT":
+                    sentiments.add(sentiment)
+
+    summary = pd.DataFrame([{
+        "order": get_node_label(G, node),
+        "order_id": G.nodes[node].get("order_id", node),
+        "customer": (
+            get_node_label(G, customer)
+            if customer is not None
+            else "Unknown"
+        ),
+        "products": len(products),
+        "sellers": len(sellers),
+        "payments": len(payments),
+        "payment_value": sum(payments),
+        "reviews": len(reviews),
+        "sentiments": len(sentiments),
+    }])
+
+    return summary
+
+
+def get_review_analytics(G, node):
+    data = G.nodes[node]
+
+    sentiments = []
+    nlp_sentiments = []
+
+    for target in G.successors(node):
+        edge = G.get_edge_data(node, target, default={})
+        relation = edge.get("relation")
+
+        if relation == "HAS_SENTIMENT":
+            sentiments.append(get_node_label(G, target))
+
+        elif relation == "HAS_NLP_SENTIMENT":
+            nlp_sentiments.append(get_node_label(G, target))
+
+    summary = pd.DataFrame([{
+        "review": get_node_label(G, node),
+        "score": data.get("score", ""),
+        "sentiment": ", ".join(sentiments),
+        "nlp_sentiment": ", ".join(nlp_sentiments),
+        "nlp_polarity": data.get("nlp_polarity", ""),
+    }])
+
+    return summary
+
+
+def get_individual_analytics(G, node):
+    node_type = get_node_type(G, node)
+
+    if node_type == "customer":
+        return get_customer_analytics(G, node)
+
+    if node_type == "product":
+        return get_product_analytics(G, node), None
+
+    if node_type == "seller":
+        return get_seller_analytics(G, node), None
+
+    if node_type in {"category", "category_original"}:
+        return get_category_analytics(G, node), None
+
+    if node_type == "order":
+        return get_order_analytics(G, node), None
+
+    if node_type == "review":
+        return get_review_analytics(G, node), None
+
+    return get_entity_information(G, node), None
+
+
+def display_general_analytics(G, results, metrics):
+    st.subheader("KG and business overview")
+
+    customer_count = count_nodes_by_type(G, "customer")
+    order_count = count_nodes_by_type(G, "order")
+    product_count = count_nodes_by_type(G, "product")
+    category_count = count_nodes_by_type(G, "category")
+    seller_count = count_nodes_by_type(G, "seller")
+    payment_count = count_nodes_by_type(G, "payment")
+    review_count = count_nodes_by_type(G, "review")
+
+    total_payment = payment_total_from_graph(G)
+    aov = total_payment / order_count if order_count else 0.0
+
+    repeat_customers = (
+        len(results["repeat_customers"])
+        if "repeat_customers" in results
+        else 0
+    )
+
+    cols = st.columns(5)
+
+    overview_metrics = [
+        ("Customers", customer_count),
+        ("Orders", order_count),
+        ("Products", product_count),
+        ("Categories", category_count),
+        ("Sellers", seller_count),
+        ("Payments", payment_count),
+        ("Reviews", review_count),
+        ("Total payment value", f"€{total_payment:,.2f}"),
+        ("Average order value", f"€{aov:,.2f}"),
+        ("Repeat customers", repeat_customers),
+    ]
+
+    for index, (label, value) in enumerate(overview_metrics):
+        with cols[index % 5]:
+            st.metric(label, value)
+
+    st.divider()
+
+    st.subheader("Knowledge Graph structure")
+
+    cols = st.columns(5)
+
+    with cols[0]:
+        st.metric("KG nodes", f"{metrics['nodes']:,}")
+
+    with cols[1]:
+        st.metric("KG relationships", f"{metrics['edges']:,}")
+
+    with cols[2]:
+        st.metric("Explicit relationships", f"{metrics['explicit_edges']:,}")
+
+    with cols[3]:
+        st.metric("Inferred relationships", f"{metrics['inferred_edges']:,}")
+
+    with cols[4]:
+        st.metric("Average degree", f"{metrics['average_degree']:.2f}")
+
+    st.subheader("Top categories")
+
+    if "category_sales.csv" in results:
+        display_dataframe(
+            results["category_sales.csv"].head(15)
+        )
+
+    st.subheader("Top products")
+
+    if "product_popularity.csv" in results:
+        display_dataframe(
+            results["product_popularity.csv"].head(15)
+        )
+
+    st.subheader("Top sellers")
+
+    if "seller_performance_analysis.csv" in results:
+        display_dataframe(
+            results["seller_performance_analysis.csv"].head(15)
+        )
+
+    st.subheader("Customer spending")
+
+    if "customer_clv.csv" in results:
+        display_dataframe(
+            results["customer_clv.csv"].head(15)
+        )
+
+    st.subheader("Monthly payment value")
+
+    if "monthly_revenue.csv" in results:
+        display_dataframe(
+            results["monthly_revenue.csv"]
+        )
+
+    st.subheader("Review sentiment")
+
+    if "sentiment_statistics.csv" in results:
+        display_dataframe(
+            results["sentiment_statistics.csv"]
+        )
+
+
+def display_individual_analytics(G, search_index):
+    st.subheader("Individual entity analytics")
+
+    entity_types = [
+        "customer",
+        "product",
+        "seller",
+        "category",
+        "order",
+        "review",
+    ]
+
+    selected_type = st.selectbox(
+        "Entity type",
+        entity_types,
+        format_func=lambda value: value.replace(
+            "_", " "
+        ).title(),
+        key="analytics_entity_type",
+    )
+
+    filter_text = st.text_input(
+        "Filter entities",
+        placeholder=(
+            "Enter an ID, name, city, category, seller, "
+            "customer ID or other identifying text..."
+        ),
+        key="analytics_entity_filter",
+    )
+
+    entities = get_entities_by_type(
+        G,
+        selected_type,
+    )
+
+    if filter_text.strip():
+        query = filter_text.lower().strip()
+        filtered = []
+
+        for node in entities:
+            data = G.nodes[node]
+
+            searchable = " ".join(
+                str(value)
+                for value in [
+                    node,
+                    get_node_label(G, node),
+                    data.get("display_name", ""),
+                    data.get("unique_id", ""),
+                    data.get("customer_unique_id", ""),
+                    data.get("product_id", ""),
+                    data.get("seller_id", ""),
+                    data.get("order_id", ""),
+                    data.get("city", ""),
+                    data.get("state", ""),
+                    data.get("category", ""),
+                ]
+                if value is not None
+            ).lower()
+
+            if query in searchable:
+                filtered.append(node)
+
+        entities = filtered
+
+    if not entities:
+        st.info("No matching entities were found.")
+        return
+
+    displayed_entities = entities[:500]
+
+    if len(entities) > 500:
+        st.info(
+            f"{len(entities):,} entities match. "
+            "Showing the first 500."
+        )
+
+    selection_map = create_entity_selection_map(
+        G,
+        displayed_entities,
+    )
+
+    selected_label = st.selectbox(
+        "Select entity",
+        list(selection_map.keys()),
+        key="analytics_entity_selection",
+    )
+
+    selected_node = selection_map[selected_label]
+
+    data = G.nodes[selected_node]
+
+    st.markdown(
+        f"**{get_node_label(G, selected_node)}**  \n"
+        f"Type: `{get_node_type(G, selected_node)}` · "
+        f"Degree: `{G.degree(selected_node)}` · "
+        f"ID: `{selected_node}`"
+    )
+
+    analytics_result, secondary_result = get_individual_analytics(
+        G,
+        selected_node,
+    )
+
+    st.subheader("Detailed analytics")
+    display_dataframe(analytics_result)
+
+    if secondary_result is not None and not secondary_result.empty:
+        st.subheader("Related sentiment")
+        display_dataframe(secondary_result)
+
+    st.subheader("Entity attributes")
+    display_dataframe(
+        get_entity_information(
+            G,
+            selected_node,
+        )
+    )
+
+    st.subheader("Connected relationships")
+
+    relationship_df = get_relationship_table(
+        G,
+        selected_node,
+        limit=100,
+    )
+
+    if not relationship_df.empty:
+        st.caption(
+            f"Showing up to 100 of "
+            f"{len(get_relationship_table(G, selected_node)):,} "
+            "relationships."
+        )
+
+    display_dataframe(relationship_df)
+
+    st.subheader("Entity neighborhood")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        depth = st.slider(
+            "Neighborhood depth",
+            1,
+            3,
+            1,
+            key="analytics_entity_depth",
+        )
+
+    with col2:
+        max_nodes = st.slider(
+            "Maximum neighborhood nodes",
+            20,
+            200,
+            60,
+            step=10,
+            key="analytics_entity_nodes",
+        )
+
+    net = create_pyvis_graph(
+        G,
+        selected_node=selected_node,
+        depth=depth,
+        max_nodes=max_nodes,
+    )
+
+    try:
+        st.components.v1.html(
+            net.generate_html(),
+            height=650,
+            scrolling=True,
+        )
+    except Exception as error:
+        st.error(f"Visualization failed: {error}")
 
 
 # application
@@ -937,7 +1653,10 @@ def main():
             st.metric("KG Nodes", f"{G.number_of_nodes():,}")
 
         with col2:
-            st.metric("KG Relationships (Edges)", f"{G.number_of_edges():,}")
+            st.metric(
+                "KG Relationships (Edges)",
+                f"{G.number_of_edges():,}",
+            )
 
         with col3:
             st.metric(
@@ -957,9 +1676,9 @@ def main():
             """
             **Ask the Knowledge Graph**
 
-            Enter analytical questions about customers,
-            spending, orders, products, categories, sellers,
-            payments and reviews.
+            Ask deterministic analytical questions about
+            customers, spending, orders, products, categories,
+            sellers, payments and reviews.
 
             **Graph Explorer**
 
@@ -969,8 +1688,8 @@ def main():
 
             **Analytics**
 
-            View predefined business analytics generated
-            from the project datasets.
+            View general KG/business analytics or detailed
+            analytics for individual KG entities.
 
             **Search Entity**
 
@@ -1007,11 +1726,13 @@ def main():
             )
 
             st.caption(
-                "Examples: Which products are most popular? · "
-                "What is the average order value? · "
-                "Show repeat customers · "
+                "Examples: How many customers are in the KG? · "
+                "How many orders are there? · "
+                "What is the total payment value? · "
                 "Show top 25 repeat customers · "
-                "Which categories have the most orders?"
+                "Which product categories are most popular? · "
+                "Which sellers have the most product-order associations? · "
+                "What is the review sentiment distribution?"
             )
 
             submitted = st.form_submit_button(
@@ -1387,25 +2108,50 @@ def main():
             relationship_df = get_relationship_table(
                 G,
                 selected_node,
+                limit=100,
             )
 
             display_dataframe(relationship_df)
 
     # analytics
     elif page == "Analytics":
-        st.header(":material/analytics: Business Analytics")
+        st.header(":material/analytics: Business and KG Analytics")
 
-        if not results:
-            st.info("No saved analytics were found.")
-        else:
-            selected = st.selectbox(
-                "Select analysis",
-                list(results.keys()),
-                format_func=get_result_title,
+        analytics_mode = st.radio(
+            "Analytics view",
+            [
+                "General KG Analytics",
+                "Individual Entity Analytics",
+                "Saved Analysis Results",
+            ],
+            horizontal=True,
+        )
+
+        if analytics_mode == "General KG Analytics":
+            display_general_analytics(
+                G,
+                results,
+                metrics,
             )
 
-            st.subheader(get_result_title(selected))
-            display_dataframe(results[selected])
+        elif analytics_mode == "Individual Entity Analytics":
+            display_individual_analytics(
+                G,
+                search_index,
+            )
+
+        else:
+            if not results:
+                st.info("No saved analytics were found.")
+            else:
+                selected = st.selectbox(
+                    "Select saved analysis",
+                    list(results.keys()),
+                    format_func=get_result_title,
+                )
+
+                st.subheader(get_result_title(selected))
+                display_dataframe(results[selected])
 
     # entity search
     elif page == "Search Entity":
@@ -1477,12 +2223,19 @@ def main():
 
                 st.subheader("Incoming and outgoing relationships")
 
-                display_dataframe(
-                    get_relationship_table(
-                        G,
-                        selected_node,
-                    )
+                relationship_df = get_relationship_table(
+                    G,
+                    selected_node,
+                    limit=100,
                 )
+
+                display_dataframe(relationship_df)
+
+                if G.degree(selected_node) > 100:
+                    st.caption(
+                        "High-degree entity: showing the first 100 "
+                        "relationships."
+                    )
 
                 st.subheader("Entity neighborhood")
 
