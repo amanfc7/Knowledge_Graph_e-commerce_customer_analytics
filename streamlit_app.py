@@ -1716,7 +1716,7 @@ def main():
             "Enter an analytical question in natural language. "
             "The deterministic query service identifies a supported "
             "intent and answers it using KG traversal and project "
-            "analytics. This is not an LLM-based interface."
+            "analytics."
         )
 
         with st.form("kg_query_form"):
