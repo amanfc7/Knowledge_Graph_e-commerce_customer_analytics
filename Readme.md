@@ -325,6 +325,18 @@ These limitations are considered when interpreting the results.
 
 ## How to Run
 
+Create the virtual environment in the project directory:
+
+```bash
+python -m venv venv
+```
+
+Activate the virtual environment:
+
+```bash
+venv\Scripts\activate
+```
+
 Install the required Python packages:
 
 ```bash
@@ -340,7 +352,8 @@ python main.py
 To launch the Streamlit application:
 
 ```bash
-streamlit run streamlit_app.py
+python -m streamlit run streamlit_app.py
 ```
+
 
 The application uses the generated Knowledge Graph and analytical result files to provide interactive exploration and Knowledge Graph services.
