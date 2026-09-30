@@ -9,7 +9,7 @@ The system integrates heterogeneous e-commerce data into a multi-relational Know
 * Customer behavior and purchasing patterns
 * Orders, products, categories, and sellers
 * Payment and transaction information
-* Customer spending and average order value
+* Customer spending and average payment value per order
 * Product and category popularity
 * Review and sentiment information
 * Seller performance
@@ -42,7 +42,7 @@ These datasets provide the source facts from which the Knowledge Graph is constr
 
 ### 2. Knowledge Graph Layer
 
-The main graph is implemented using **NetworkX** as a directed property graph.
+The main graph is implemented using **NetworkX** as a directed property graph representation.
 
 Important entity types include:
 
@@ -80,12 +80,13 @@ This representation enables multi-hop graph traversal and analytical queries acr
 The system derives additional information from the graph and source data, including:
 
 * Repeat-customer identification
-* Customer spending and average order value
+* Customer spending and average payment value per order
 * Product popularity
 * Category popularity
 * Seller-level analytical metrics
 * Review sentiment categories
 * Geographic clusters
+* Node2Vec-derived candidate product similarity relationships
 * Other graph-based statistics and metrics
 
 These derived results demonstrate how the Knowledge Graph can be enriched with information that is not explicitly stored as a single source fact.
@@ -95,6 +96,8 @@ These derived results demonstrate how the Knowledge Graph can be enriched with i
 The project applies **Node2Vec** to learn vector representations of graph nodes.
 
 Node2Vec is used as a **Knowledge Graph / graph embedding technique** for exploring structural similarity between entities.
+
+The learned Node2Vec representations are also used to derive candidate product similarity relationships in the Knowledge Graph based on embedding similarity.
 
 The project therefore addresses graph representation learning without claiming implementation of LO3.
 
@@ -133,7 +136,7 @@ The natural-language query interface uses **deterministic intent detection and g
 
 * Customer spending analysis
 * Repeat-customer identification
-* Average order value
+* average payment value per order
 * Transaction/payment value analysis
 * Product popularity
 * Category popularity
@@ -147,6 +150,7 @@ The natural-language query interface uses **deterministic intent detection and g
 * Review sentiment categorization
 * Geographic clustering
 * Additional analytical nodes and relationships
+* Node2Vec-derived candidate product similarity relationships
 
 The enrichment process demonstrates a basic form of Knowledge Graph evolution by adding derived information to the graph.
 
@@ -157,8 +161,10 @@ The enrichment process demonstrates a basic form of Knowledge Graph evolution by
 * Structural similarity evaluation
 * Embedding statistics
 * t-SNE visualization
+* Node2Vec-derived candidate product similarity relationships
 
 The embedding evaluation uses a **project-defined structural evaluation**, where embedding neighbors are compared with graph connectivity within a limited hop distance. This is intended as a structural sanity check rather than a standard supervised link-prediction benchmark.
+The `EMBEDDING_SIMILAR_TO` relationships are generated from Node2Vec cosine similarity for a bounded set of product nodes using a project-defined similarity threshold and top-K selection. These relationships are treated as candidate similarity relationships rather than ground-truth business relationships.
 
 ### Knowledge Graph Service
 
@@ -169,7 +175,7 @@ The system provides a deterministic analytical query service capable of answerin
 * Product popularity
 * Category popularity
 * Seller popularity
-* Average order value
+* average payment value per order
 * Payment/transaction value
 * Customer products
 * Customer categories
@@ -242,7 +248,7 @@ The project demonstrates a real-world e-commerce application involving customer 
 
 **LO1 — Understand and apply Knowledge Graph Embeddings**
 
-Node2Vec is applied to obtain vector representations of graph entities and evaluate their structural similarity.
+Node2Vec is applied to obtain vector representations of graph entities and evaluate their structural similarity. The learned representations are also used to derive candidate product similarity relationships.
 
 **LO2 — Understand and apply logical knowledge in KGs**
 
@@ -262,7 +268,11 @@ The project demonstrates rule-based and graph traversal approaches for deriving 
 
 **LO8 — Apply a system to evolve a Knowledge Graph**
 
-The system enriches the graph with derived analytical information such as sentiment categories and geographic clusters.
+The system enriches the graph with derived analytical information such as sentiment categories and geographic clusters. The reasoning layer also adds inferred relationships from existing graph facts, while the ML representation layer adds candidate `EMBEDDING_SIMILAR_TO` relationships derived from Node2Vec similarity.
+
+**LO10 — Describe financial Knowledge Graph applications**
+
+Financial and transaction-related analysis is present in the project, but LO10 is not selected as a dedicated learning outcome for the project scope.
 
 **LO11 — Apply a system to provide services through a Knowledge Graph**
 
@@ -270,7 +280,7 @@ The Streamlit application provides an interactive service for querying, explorin
 
 **LO12 — Describe connections between Knowledge Graphs, Machine Learning (ML), and Artificial Intelligence (AI)**
 
-The project demonstrates connections between Knowledge Graphs, graph embeddings, NLP-based enrichment, analytical processing, and application-level graph services.
+The project demonstrates connections between Knowledge Graphs, graph embeddings, NLP-based enrichment, analytical processing, and application-level graph services. Node2Vec learns representations from the Knowledge Graph, and the resulting embedding similarities are used to add candidate relationships back into the Knowledge Graph.
 
 ### Learning Outcomes Outside the Project Scope
 
@@ -278,9 +288,6 @@ The project demonstrates connections between Knowledge Graphs, graph embeddings,
 
 Not included. The project uses Node2Vec for graph embeddings but does not implement a Graph Neural Network.
 
-**LO10 — Describe financial Knowledge Graph applications**
-
-Financial and transaction-related analysis is present in the project, but LO10 is not selected as a dedicated learning outcome for the project scope.
 
 ---
 

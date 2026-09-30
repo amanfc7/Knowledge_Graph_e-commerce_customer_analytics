@@ -1,4 +1,3 @@
-
 import json
 import os
 import pickle
@@ -28,6 +27,17 @@ P = 1.0
 Q = 1.0
 
 
+# ML-based KG evolution configuration
+# Only product-to-product similarity relationships are added.
+# This keeps the derived knowledge semantically meaningful and bounded.
+EVOLUTION_NODE_TYPE = "product"
+EVOLUTION_MAX_SOURCES = 500
+EVOLUTION_TOP_K = 3
+EVOLUTION_SIMILARITY_THRESHOLD = 0.90
+EVOLUTION_CANDIDATE_TOP_N = 50
+EVOLUTION_RELATION = "EMBEDDING_SIMILAR_TO"
+
+
 # theory bridge
 # LO1 — knowledge graph embeddings
 # LO12 — connections between KGs, ML and AI
@@ -38,7 +48,6 @@ def explain_embedding_relation():
 Knowledge Graph:
 - Nodes represent entities or events.
 - Edges represent relationships.
-- Graph structure provides relational context.
 
 Node2Vec:
 - Random walks explore graph neighbourhoods.
@@ -70,6 +79,218 @@ def save_json(data, filename):
         )
 
     return path
+
+
+# ML-based KG evolution
+def evolve_kg_with_embeddings(G, model):
+    print(
+        "\n--- ML-BASED KNOWLEDGE GRAPH EVOLUTION ---"
+    )
+
+    if G is None:
+        print(
+            "\nEmbedding-based KG evolution skipped: graph is None."
+        )
+        return 0
+
+    if model is None:
+        print(
+            "\nEmbedding-based KG evolution skipped: model is None."
+        )
+        return 0
+
+    # Select only nodes of the chosen semantic type.
+    candidate_nodes = [
+        node
+        for node, data in G.nodes(data=True)
+        if data.get("type") == EVOLUTION_NODE_TYPE
+        and str(node) in model.wv
+    ]
+
+    # Keep the ML evolution bounded for this project.
+    candidate_nodes = sorted(
+        candidate_nodes,
+        key=lambda node: str(node),
+    )[:EVOLUTION_MAX_SOURCES]
+
+    print(
+        "Evolution node type:",
+        EVOLUTION_NODE_TYPE,
+    )
+
+    print(
+        "Candidate source nodes:",
+        len(candidate_nodes),
+    )
+
+    print(
+        "Similarity threshold:",
+        EVOLUTION_SIMILARITY_THRESHOLD,
+    )
+
+    print(
+        "Top-K similar nodes per source:",
+        EVOLUTION_TOP_K,
+    )
+
+    print(
+        "Maximum candidate neighbours inspected:",
+        EVOLUTION_CANDIDATE_TOP_N,
+    )
+
+    derived_rows = []
+    added_pairs = set()
+    added_edges = 0
+
+    for source_node in candidate_nodes:
+        source_string = str(source_node)
+
+        try:
+            similar_nodes = model.wv.most_similar(
+                source_string,
+                topn=EVOLUTION_CANDIDATE_TOP_N,
+            )
+        except Exception:
+            continue
+
+        accepted_for_source = 0
+
+        for similar_node, score in similar_nodes:
+            similar_node = str(similar_node)
+            score = float(score)
+
+            if similar_node == source_string:
+                continue
+
+            if score < EVOLUTION_SIMILARITY_THRESHOLD:
+                continue
+
+            if similar_node not in G:
+                continue
+
+            similar_data = G.nodes[similar_node]
+
+            if similar_data.get("type") != EVOLUTION_NODE_TYPE:
+                continue
+
+            # Similarity is conceptually symmetric.
+            # Avoid adding both directions of the same derived pair.
+            pair_key = frozenset(
+                [source_string, similar_node]
+            )
+
+            if pair_key in added_pairs:
+                continue
+
+            # Do not overwrite or duplicate an existing graph relationship.
+            if G.has_edge(source_node, similar_node):
+                continue
+
+            if G.has_edge(similar_node, source_node):
+                continue
+
+            G.add_edge(
+                source_node,
+                similar_node,
+                relation=EVOLUTION_RELATION,
+                weight=score,
+                similarity_score=score,
+                inferred=True,
+                knowledge_source="Node2Vec",
+                embedding_method="Node2Vec",
+                evolution_type="ML-derived",
+            )
+
+            added_pairs.add(pair_key)
+
+            derived_rows.append(
+                {
+                    "source_node": source_string,
+                    "target_node": similar_node,
+                    "relation": EVOLUTION_RELATION,
+                    "cosine_similarity": score,
+                    "embedding_method": "Node2Vec",
+                    "knowledge_source": "Node2Vec",
+                    "evolution_type": "ML-derived",
+                    "inferred": True,
+                }
+            )
+
+            added_edges += 1
+            accepted_for_source += 1
+
+            if accepted_for_source >= EVOLUTION_TOP_K:
+                break
+
+    evolution_path = os.path.join(
+        RESULTS_DIR,
+        "embedding_derived_relationships.csv",
+    )
+
+    if derived_rows:
+        evolution_df = pd.DataFrame(
+            derived_rows
+        )
+
+        evolution_df.to_csv(
+            evolution_path,
+            index=False,
+        )
+
+        print(
+            "\nSaved embedding-derived relationships:",
+            evolution_path,
+        )
+    else:
+        print(
+            "\nNo embedding-derived relationships were added."
+        )
+
+    evolution_summary = {
+        "evolution_method": "Node2Vec embedding similarity",
+        "relation_added": EVOLUTION_RELATION,
+        "source_node_type": EVOLUTION_NODE_TYPE,
+        "candidate_source_nodes": len(candidate_nodes),
+        "maximum_sources": EVOLUTION_MAX_SOURCES,
+        "top_k_per_source": EVOLUTION_TOP_K,
+        "candidate_top_n": EVOLUTION_CANDIDATE_TOP_N,
+        "similarity_threshold": EVOLUTION_SIMILARITY_THRESHOLD,
+        "derived_relationships_added": added_edges,
+        "input_graph_edges_before_evolution": (
+            G.number_of_edges() - added_edges
+        ),
+        "final_graph_edges_after_evolution": (
+            G.number_of_edges()
+        ),
+        "knowledge_source": "Node2Vec",
+        "inferred": True,
+    }
+
+    evolution_summary_path = save_json(
+        evolution_summary,
+        "embedding_kg_evolution.json",
+    )
+
+    print(
+        "\n--- ML KG EVOLUTION SUMMARY ---"
+    )
+
+    print(
+        "Embedding-derived relationships added:",
+        added_edges,
+    )
+
+    print(
+        "KG edges after ML evolution:",
+        G.number_of_edges(),
+    )
+
+    print(
+        "Saved evolution summary:",
+        evolution_summary_path,
+    )
+
+    return added_edges
 
 
 # Node2Vec model
@@ -168,6 +389,12 @@ def run_node2vec(G):
         "input_nodes": G.number_of_nodes(),
         "input_edges": G.number_of_edges(),
         "model_path": model_path,
+        "kg_evolution": True,
+        "evolution_relation": EVOLUTION_RELATION,
+        "evolution_node_type": EVOLUTION_NODE_TYPE,
+        "evolution_max_sources": EVOLUTION_MAX_SOURCES,
+        "evolution_top_k": EVOLUTION_TOP_K,
+        "evolution_similarity_threshold": EVOLUTION_SIMILARITY_THRESHOLD,
     }
 
     configuration_path = save_json(
@@ -305,6 +532,5 @@ def run_node2vec(G):
 # main
 if __name__ == "__main__":
     print(
-        "This module is normally executed through main.py."
+        "This module is executed through main.py."
     )
-

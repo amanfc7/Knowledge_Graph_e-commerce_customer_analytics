@@ -53,6 +53,7 @@ EDGE_COLORS = {
     "CUSTOMER_ASSOCIATED_WITH_CATEGORY": "#7030A0",
     "CUSTOMER_ASSOCIATED_WITH_SELLER": "#38761D",
     "ORDER_HAS_INFERRED_NLP_SENTIMENT": "#C55A11",
+    "EMBEDDING_SIMILAR_TO": "#8E44AD",
 }
 DEFAULT_EDGE_COLOR = "#999999"
 
@@ -62,7 +63,6 @@ DEFAULT_EDGE_COLOR = "#999999"
 def load_graph():
     if not os.path.exists(GRAPH_JSON_PATH):
         return None
-
     with open(GRAPH_JSON_PATH, "r", encoding="utf-8") as file:
         return json.load(file)
 
@@ -70,30 +70,21 @@ def load_graph():
 @st.cache_resource
 def create_networkx_graph(data):
     G = nx.DiGraph()
-
     if not data:
         return G
 
     for node in data.get("nodes", []):
         node_id = node.get("id")
-
         if node_id is None:
             continue
-
-        attributes = {
-            key: value
-            for key, value in node.items()
-            if key != "id"
-        }
+        attributes = {key: value for key, value in node.items() if key != "id"}
         G.add_node(node_id, **attributes)
 
     for edge in data.get("edges", []):
         source = edge.get("source")
         target = edge.get("target")
-
         if source is None or target is None:
             continue
-
         attributes = {
             key: value
             for key, value in edge.items()
@@ -108,10 +99,8 @@ def create_networkx_graph(data):
 @st.cache_resource
 def create_search_index(_G):
     index = []
-
     for node in _G.nodes():
         attributes = _G.nodes[node]
-
         searchable_text = " ".join(
             str(value)
             for value in [
@@ -125,27 +114,21 @@ def create_search_index(_G):
             ]
             if value is not None
         ).lower()
-
         index.append((str(node), searchable_text))
-
     return index
 
 
 def search_nodes(index, query, limit=50):
     query = str(query).lower().strip()
-
     if not query:
         return []
 
     results = []
-
     for node_id, searchable in index:
         if query in searchable:
             results.append(node_id)
-
             if len(results) >= limit:
                 break
-
     return results
 
 
@@ -166,13 +149,10 @@ def load_results():
     ]
 
     results = {}
-
     for filename in result_files:
         path = os.path.join(RESULTS_DIR, filename)
-
         if not os.path.exists(path):
             continue
-
         try:
             results[filename] = pd.read_csv(path)
         except Exception:
@@ -184,19 +164,16 @@ def load_results():
 def get_result_title(filename):
     titles = {
         "customer_clv.csv": "Historical Customer Spending",
-        "financial_kg_customer_profiles.csv": (
-            "Financial KG Customer Profiles"
-        ),
+        "financial_kg_customer_profiles.csv": "Financial KG Customer Profiles",
         "repeat_customers.csv": "Repeat Customers",
         "product_popularity.csv": "Product Popularity",
-        "category_sales.csv": "Category Sales",
+        "category_sales.csv": "Category Item Count",
         "seller_performance_analysis.csv": "Seller Performance Analysis",
         "monthly_revenue.csv": "Monthly Payment Value",
         "payment_statistics.csv": "Payment Statistics",
         "review_sentiment_analysis.csv": "Review Sentiment Analysis",
         "sentiment_statistics.csv": "Sentiment Statistics",
     }
-
     return titles.get(
         filename,
         filename.replace(".csv", "").replace("_", " ").title(),
@@ -218,11 +195,8 @@ def calculate_graph_metrics(_G):
     }
 
     degrees = dict(_G.degree())
-
     if degrees:
-        metrics["average_degree"] = (
-            sum(degrees.values()) / len(degrees)
-        )
+        metrics["average_degree"] = sum(degrees.values()) / len(degrees)
         metrics["top_nodes"] = sorted(
             degrees.items(),
             key=lambda item: item[1],
@@ -237,10 +211,7 @@ def calculate_graph_metrics(_G):
         for _, _, data in _G.edges(data=True)
         if data.get("inferred", False)
     )
-    metrics["explicit_edges"] = (
-        metrics["edges"] - metrics["inferred_edges"]
-    )
-
+    metrics["explicit_edges"] = metrics["edges"] - metrics["inferred_edges"]
     return metrics
 
 
@@ -257,22 +228,16 @@ def get_node_label(G, node):
         city = str(data.get("city", "")).strip()
         state = str(data.get("state", "")).strip()
         unique_id = str(
-            data.get(
-                "unique_id",
-                data.get("customer_unique_id", ""),
-            )
+            data.get("unique_id", data.get("customer_unique_id", ""))
         ).strip()
 
         if unique_id:
             short_id = unique_id[:8]
             parts = ["Customer"]
-
             if city:
                 parts.append(city)
-
             if state:
                 parts.append(state)
-
             parts.append(short_id)
             label = " | ".join(parts)
         else:
@@ -281,7 +246,6 @@ def get_node_label(G, node):
         label = data.get("display_name", node)
 
     label = str(label)
-
     return label if len(label) <= 55 else label[:52] + "..."
 
 
@@ -302,13 +266,10 @@ def get_node_hover_title(G, node):
             "unique_id",
             data.get("customer_unique_id"),
         )
-
         if unique_id:
             lines.append(f"Persistent customer ID: {unique_id}")
-
         if data.get("city"):
             lines.append(f"City: {data['city']}")
-
         if data.get("state"):
             lines.append(f"State: {data['state']}")
 
@@ -357,7 +318,6 @@ def get_entities_by_type(G, entity_type):
         for node in G.nodes()
         if str(G.nodes[node].get("type", "")) == entity_type
     ]
-
     return sorted(
         entities,
         key=lambda node: get_node_label(G, node).lower(),
@@ -366,7 +326,6 @@ def get_entities_by_type(G, entity_type):
 
 def create_entity_selection_map(G, nodes):
     selection_map = {}
-
     for node in nodes:
         label = get_node_label(G, node)
         node_type = get_node_type(G, node)
@@ -397,55 +356,33 @@ def build_representative_subgraph(
     max_depth = max(1, int(max_depth))
 
     preferred_types = {
-        "customer",
-        "order",
-        "product",
-        "category",
-        "category_original",
-        "seller",
-        "payment",
-        "review",
-        "sentiment",
-        "city",
-        "state",
-        "geographic_cluster",
+        "customer", "order", "product", "category",
+        "category_original", "seller", "payment", "review",
+        "sentiment", "city", "state", "geographic_cluster",
     }
 
-    anchor_types = {
-        "order",
-        "product",
-        "customer",
-        "seller",
-    }
-
+    anchor_types = {"order", "product", "customer", "seller"}
     rng = random.Random(random_seed)
     anchor_candidates = []
 
     for node_type in anchor_types:
         candidates = [
-            node
-            for node in G.nodes()
+            node for node in G.nodes()
             if str(G.nodes[node].get("type", "")) == node_type
         ]
-
         ranked = sorted(
             candidates,
             key=lambda node: G.degree(node),
             reverse=True,
         )
-
-        anchor_candidates.extend(
-            ranked[:min(len(ranked), 500)]
-        )
+        anchor_candidates.extend(ranked[:min(len(ranked), 500)])
 
     if not anchor_candidates:
         anchor_candidates = list(G.nodes())
 
     anchor = rng.choice(anchor_candidates)
     selected_nodes = {anchor}
-    selected_types = {
-        str(G.nodes[anchor].get("type", "unknown"))
-    }
+    selected_types = {str(G.nodes[anchor].get("type", "unknown"))}
     frontier = {anchor}
 
     for _ in range(max_depth):
@@ -453,11 +390,9 @@ def build_representative_subgraph(
             break
 
         candidates = set()
-
         for node in frontier:
             candidates.update(G.successors(node))
             candidates.update(G.predecessors(node))
-
         candidates.difference_update(selected_nodes)
 
         if not candidates:
@@ -466,19 +401,12 @@ def build_representative_subgraph(
         missing_types = preferred_types - selected_types
 
         def candidate_score(node):
-            node_type = str(
-                G.nodes[node].get("type", "unknown")
-            )
+            node_type = str(G.nodes[node].get("type", "unknown"))
             degree = G.degree(node)
-            diversity_bonus = (
-                10000 if node_type in missing_types else 0
-            )
-            type_bonus = (
-                100 if node_type in preferred_types else 0
-            )
+            diversity_bonus = 10000 if node_type in missing_types else 0
+            type_bonus = 100 if node_type in preferred_types else 0
             degree_score = min(degree, 500)
             random_jitter = rng.random() * 250
-
             return (
                 diversity_bonus,
                 type_bonus,
@@ -501,14 +429,12 @@ def build_representative_subgraph(
             node_type = str(
                 G.nodes[candidate].get("type", "unknown")
             )
-
             if (
                 node_type not in selected_types
                 and node_type not in chosen_types
             ):
                 chosen.append(candidate)
                 chosen_types.add(node_type)
-
                 if len(chosen) >= remaining:
                     break
 
@@ -516,7 +442,6 @@ def build_representative_subgraph(
             for candidate in ranked:
                 if candidate not in chosen:
                     chosen.append(candidate)
-
                 if len(chosen) >= remaining:
                     break
 
@@ -530,9 +455,7 @@ def build_representative_subgraph(
         )
         frontier = set(chosen)
 
-    return G.subgraph(
-        list(selected_nodes)[:max_nodes]
-    ).copy()
+    return G.subgraph(list(selected_nodes)[:max_nodes]).copy()
 
 
 def build_local_subgraph(
@@ -550,18 +473,15 @@ def build_local_subgraph(
 
     for _ in range(depth):
         next_frontier = set()
-
         for node in frontier:
             next_frontier.update(G.successors(node))
             next_frontier.update(G.predecessors(node))
 
         next_frontier.difference_update(selected_nodes)
-
         if not next_frontier:
             break
 
         remaining = max_nodes - len(selected_nodes)
-
         if remaining <= 0:
             break
 
@@ -570,14 +490,11 @@ def build_local_subgraph(
             key=lambda node: G.degree(node),
             reverse=True,
         )
-
         selected_frontier = set(ranked[:remaining])
         selected_nodes.update(selected_frontier)
         frontier = selected_frontier
 
-    return G.subgraph(
-        list(selected_nodes)[:max_nodes]
-    ).copy()
+    return G.subgraph(list(selected_nodes)[:max_nodes]).copy()
 
 
 def build_entity_type_overview_subgraph(
@@ -590,7 +507,6 @@ def build_entity_type_overview_subgraph(
 
     max_nodes = max(1, int(max_nodes))
     candidates = get_entities_by_type(G, entity_type)
-
     if not candidates:
         return nx.DiGraph()
 
@@ -616,7 +532,6 @@ def build_entity_type_overview_subgraph(
             candidates_next.update(G.predecessors(node))
 
         candidates_next.difference_update(selected_nodes)
-
         if not candidates_next:
             break
 
@@ -627,16 +542,11 @@ def build_entity_type_overview_subgraph(
         )
 
         remaining = max_nodes - len(selected_nodes)
-        next_frontier = set(
-            ranked_candidates[:remaining]
-        )
-
+        next_frontier = set(ranked_candidates[:remaining])
         selected_nodes.update(next_frontier)
         frontier = next_frontier
 
-    return G.subgraph(
-        list(selected_nodes)[:max_nodes]
-    ).copy()
+    return G.subgraph(list(selected_nodes)[:max_nodes]).copy()
 
 
 # pyvis
@@ -719,8 +629,7 @@ def create_pyvis_graph_from_subgraph(
             title=get_node_hover_title(G, node),
             color=get_node_color(node_type),
             size=35 if node == selected_node else min(
-                15 + degree * 1.2,
-                30,
+                15 + degree * 1.2, 30
             ),
             borderWidth=2,
             shape="dot",
@@ -729,15 +638,17 @@ def create_pyvis_graph_from_subgraph(
     for source, target, edge_data in local_graph.edges(data=True):
         relation = str(edge_data.get("relation", ""))
         inferred = bool(edge_data.get("inferred", False))
-
         title = relation
 
         if inferred:
             rule = edge_data.get("inference_rule", "")
             title = "Inferred relationship"
-
             if rule:
                 title += f"<br>Rule: {rule}"
+
+        if relation == "EMBEDDING_SIMILAR_TO":
+            score = edge_data.get("similarity_score", edge_data.get("weight", ""))
+            title = f"Node2Vec similarity<br>Score: {score}"
 
         net.add_edge(
             str(source),
@@ -803,9 +714,7 @@ def get_relationship_table(G, selected_node, limit=None):
 
     for target in G.successors(selected_node):
         edge_data = G.get_edge_data(
-            selected_node,
-            target,
-            default={},
+            selected_node, target, default={}
         )
         target_data = G.nodes[target]
 
@@ -820,9 +729,7 @@ def get_relationship_table(G, selected_node, limit=None):
 
     for source in G.predecessors(selected_node):
         edge_data = G.get_edge_data(
-            source,
-            selected_node,
-            default={},
+            source, selected_node, default={}
         )
         source_data = G.nodes[source]
 
@@ -870,12 +777,9 @@ def display_dataframe(dataframe):
 
 def display_graph_legend():
     st.markdown("### Node types")
-
     columns = st.columns(4)
 
-    for index, (node_type, color) in enumerate(
-        NODE_COLORS.items()
-    ):
+    for index, (node_type, color) in enumerate(NODE_COLORS.items()):
         with columns[index % 4]:
             st.markdown(
                 f"""
@@ -968,13 +872,11 @@ def get_customer_analytics(G, node):
 
             for category in G.successors(product):
                 edge = G.get_edge_data(product, category, default={})
-
                 if edge.get("relation") == "BELONGS_TO":
                     categories.add(category)
 
             for seller in G.successors(product):
                 edge = G.get_edge_data(product, seller, default={})
-
                 if edge.get("relation") == "OFFERED_BY":
                     sellers.add(seller)
 
@@ -988,11 +890,8 @@ def get_customer_analytics(G, node):
 
             for sentiment in G.successors(review):
                 sentiment_edge = G.get_edge_data(
-                    review,
-                    sentiment,
-                    default={},
+                    review, sentiment, default={}
                 )
-
                 if sentiment_edge.get("relation") == "HAS_SENTIMENT":
                     sentiments.add(sentiment)
 
@@ -1005,7 +904,7 @@ def get_customer_analytics(G, node):
         "sellers": len(sellers),
         "reviews": len(reviews),
         "total_payment_value": spending,
-        "average_order_value": (
+        "average_payment_value_per_order": (
             spending / len(orders) if orders else 0.0
         ),
     }])
@@ -1033,11 +932,8 @@ def get_product_analytics(G, node):
 
             for customer in G.predecessors(source):
                 customer_edge = G.get_edge_data(
-                    customer,
-                    source,
-                    default={},
+                    customer, source, default={}
                 )
-
                 if (
                     G.nodes[customer].get("type") == "customer"
                     and customer_edge.get("relation") == "PLACED"
@@ -1049,7 +945,6 @@ def get_product_analytics(G, node):
 
         if edge.get("relation") == "OFFERED_BY":
             sellers.add(target)
-
         if edge.get("relation") == "BELONGS_TO":
             categories.add(target)
 
@@ -1081,9 +976,7 @@ def get_seller_analytics(G, node):
 
             for order in G.predecessors(product):
                 order_edge = G.get_edge_data(
-                    order,
-                    product,
-                    default={},
+                    order, product, default={}
                 )
 
                 if (
@@ -1094,9 +987,7 @@ def get_seller_analytics(G, node):
 
                     for customer in G.predecessors(order):
                         customer_edge = G.get_edge_data(
-                            customer,
-                            order,
-                            default={},
+                            customer, order, default={}
                         )
 
                         if (
@@ -1135,19 +1026,14 @@ def get_category_analytics(G, node):
 
         for seller in G.successors(product):
             seller_edge = G.get_edge_data(
-                product,
-                seller,
-                default={},
+                product, seller, default={}
             )
-
             if seller_edge.get("relation") == "OFFERED_BY":
                 sellers.add(seller)
 
         for order in G.predecessors(product):
             order_edge = G.get_edge_data(
-                order,
-                product,
-                default={},
+                order, product, default={}
             )
 
             if (
@@ -1158,9 +1044,7 @@ def get_category_analytics(G, node):
 
                 for customer in G.predecessors(order):
                     customer_edge = G.get_edge_data(
-                        customer,
-                        order,
-                        default={},
+                        customer, order, default={}
                     )
 
                     if (
@@ -1207,11 +1091,8 @@ def get_order_analytics(G, node):
 
             for seller in G.successors(target):
                 seller_edge = G.get_edge_data(
-                    target,
-                    seller,
-                    default={},
+                    target, seller, default={}
                 )
-
                 if seller_edge.get("relation") == "OFFERED_BY":
                     sellers.add(seller)
 
@@ -1220,9 +1101,7 @@ def get_order_analytics(G, node):
             and target_type == "payment"
         ):
             try:
-                payments.append(float(
-                    G.nodes[target].get("value", 0)
-                ))
+                payments.append(float(G.nodes[target].get("value", 0)))
             except (TypeError, ValueError):
                 pass
 
@@ -1231,11 +1110,8 @@ def get_order_analytics(G, node):
 
             for sentiment in G.successors(target):
                 sentiment_edge = G.get_edge_data(
-                    target,
-                    sentiment,
-                    default={},
+                    target, sentiment, default={}
                 )
-
                 if sentiment_edge.get("relation") == "HAS_SENTIMENT":
                     sentiments.add(sentiment)
 
@@ -1260,7 +1136,6 @@ def get_order_analytics(G, node):
 
 def get_review_analytics(G, node):
     data = G.nodes[node]
-
     sentiments = []
     nlp_sentiments = []
 
@@ -1270,7 +1145,6 @@ def get_review_analytics(G, node):
 
         if relation == "HAS_SENTIMENT":
             sentiments.append(get_node_label(G, target))
-
         elif relation == "HAS_NLP_SENTIMENT":
             nlp_sentiments.append(get_node_label(G, target))
 
@@ -1290,19 +1164,14 @@ def get_individual_analytics(G, node):
 
     if node_type == "customer":
         return get_customer_analytics(G, node)
-
     if node_type == "product":
         return get_product_analytics(G, node), None
-
     if node_type == "seller":
         return get_seller_analytics(G, node), None
-
     if node_type in {"category", "category_original"}:
         return get_category_analytics(G, node), None
-
     if node_type == "order":
         return get_order_analytics(G, node), None
-
     if node_type == "review":
         return get_review_analytics(G, node), None
 
@@ -1323,9 +1192,13 @@ def display_general_analytics(G, results, metrics):
     total_payment = payment_total_from_graph(G)
     aov = total_payment / order_count if order_count else 0.0
 
+    # FIX: count only customers where is_repeat == True
     repeat_customers = (
-        len(results["repeat_customers"])
-        if "repeat_customers" in results
+        int(results["repeat_customers"]["is_repeat"].sum())
+        if (
+            "repeat_customers" in results
+            and "is_repeat" in results["repeat_customers"].columns
+        )
         else 0
     )
 
@@ -1339,8 +1212,8 @@ def display_general_analytics(G, results, metrics):
         ("Sellers", seller_count),
         ("Payments", payment_count),
         ("Reviews", review_count),
-        ("Total payment value", f"€{total_payment:,.2f}"),
-        ("Average order value", f"€{aov:,.2f}"),
+        ("Total payment value", f"R${total_payment:,.2f}"),
+        ("Average payment value per order", f"R${aov:,.2f}"),
         ("Repeat customers", repeat_customers),
     ]
 
@@ -1349,87 +1222,60 @@ def display_general_analytics(G, results, metrics):
             st.metric(label, value)
 
     st.divider()
-
     st.subheader("Knowledge Graph structure")
 
     cols = st.columns(5)
 
     with cols[0]:
         st.metric("KG nodes", f"{metrics['nodes']:,}")
-
     with cols[1]:
         st.metric("KG relationships", f"{metrics['edges']:,}")
-
     with cols[2]:
         st.metric("Explicit relationships", f"{metrics['explicit_edges']:,}")
-
     with cols[3]:
         st.metric("Inferred relationships", f"{metrics['inferred_edges']:,}")
-
     with cols[4]:
         st.metric("Average degree", f"{metrics['average_degree']:.2f}")
 
     st.subheader("Top categories")
-
     if "category_sales.csv" in results:
-        display_dataframe(
-            results["category_sales.csv"].head(15)
-        )
+        display_dataframe(results["category_sales.csv"].head(15))
 
     st.subheader("Top products")
-
     if "product_popularity.csv" in results:
-        display_dataframe(
-            results["product_popularity.csv"].head(15)
-        )
+        display_dataframe(results["product_popularity.csv"].head(15))
 
     st.subheader("Top sellers")
-
     if "seller_performance_analysis.csv" in results:
         display_dataframe(
             results["seller_performance_analysis.csv"].head(15)
         )
 
     st.subheader("Customer spending")
-
     if "customer_clv.csv" in results:
-        display_dataframe(
-            results["customer_clv.csv"].head(15)
-        )
+        display_dataframe(results["customer_clv.csv"].head(15))
 
     st.subheader("Monthly payment value")
-
     if "monthly_revenue.csv" in results:
-        display_dataframe(
-            results["monthly_revenue.csv"]
-        )
+        display_dataframe(results["monthly_revenue.csv"])
 
     st.subheader("Review sentiment")
-
     if "sentiment_statistics.csv" in results:
-        display_dataframe(
-            results["sentiment_statistics.csv"]
-        )
+        display_dataframe(results["sentiment_statistics.csv"])
 
 
 def display_individual_analytics(G, search_index):
     st.subheader("Individual entity analytics")
 
     entity_types = [
-        "customer",
-        "product",
-        "seller",
-        "category",
-        "order",
-        "review",
+        "customer", "product", "seller",
+        "category", "order", "review",
     ]
 
     selected_type = st.selectbox(
         "Entity type",
         entity_types,
-        format_func=lambda value: value.replace(
-            "_", " "
-        ).title(),
+        format_func=lambda value: value.replace("_", " ").title(),
         key="analytics_entity_type",
     )
 
@@ -1442,10 +1288,7 @@ def display_individual_analytics(G, search_index):
         key="analytics_entity_filter",
     )
 
-    entities = get_entities_by_type(
-        G,
-        selected_type,
-    )
+    entities = get_entities_by_type(G, selected_type)
 
     if filter_text.strip():
         query = filter_text.lower().strip()
@@ -1453,7 +1296,6 @@ def display_individual_analytics(G, search_index):
 
         for node in entities:
             data = G.nodes[node]
-
             searchable = " ".join(
                 str(value)
                 for value in [
@@ -1490,8 +1332,7 @@ def display_individual_analytics(G, search_index):
         )
 
     selection_map = create_entity_selection_map(
-        G,
-        displayed_entities,
+        G, displayed_entities
     )
 
     selected_label = st.selectbox(
@@ -1501,7 +1342,6 @@ def display_individual_analytics(G, search_index):
     )
 
     selected_node = selection_map[selected_label]
-
     data = G.nodes[selected_node]
 
     st.markdown(
@@ -1512,8 +1352,7 @@ def display_individual_analytics(G, search_index):
     )
 
     analytics_result, secondary_result = get_individual_analytics(
-        G,
-        selected_node,
+        G, selected_node
     )
 
     st.subheader("Detailed analytics")
@@ -1524,19 +1363,12 @@ def display_individual_analytics(G, search_index):
         display_dataframe(secondary_result)
 
     st.subheader("Entity attributes")
-    display_dataframe(
-        get_entity_information(
-            G,
-            selected_node,
-        )
-    )
+    display_dataframe(get_entity_information(G, selected_node))
 
     st.subheader("Connected relationships")
 
     relationship_df = get_relationship_table(
-        G,
-        selected_node,
-        limit=100,
+        G, selected_node, limit=100
     )
 
     if not relationship_df.empty:
@@ -1555,18 +1387,14 @@ def display_individual_analytics(G, search_index):
     with col1:
         depth = st.slider(
             "Neighborhood depth",
-            1,
-            3,
-            1,
+            1, 3, 1,
             key="analytics_entity_depth",
         )
 
     with col2:
         max_nodes = st.slider(
             "Maximum neighborhood nodes",
-            20,
-            200,
-            60,
+            20, 200, 60,
             step=10,
             key="analytics_entity_nodes",
         )
@@ -1651,19 +1479,16 @@ def main():
 
         with col1:
             st.metric("KG Nodes", f"{G.number_of_nodes():,}")
-
         with col2:
             st.metric(
                 "KG Relationships (Edges)",
                 f"{G.number_of_edges():,}",
             )
-
         with col3:
             st.metric(
                 "Average Degree",
                 f"{metrics['average_degree']:.2f}",
             )
-
         with col4:
             st.metric(
                 "Inferred Relationships",
@@ -1708,9 +1533,7 @@ def main():
 
     # analytical query service
     elif page == "Ask (Query) the Knowledge Graph":
-        st.header(
-            ":material/search: Ask (Query) the Knowledge Graph"
-        )
+        st.header(":material/search: Ask (Query) the Knowledge Graph")
 
         st.write(
             "Enter an analytical question in natural language. "
@@ -1744,13 +1567,8 @@ def main():
             if not question.strip():
                 st.warning("Please enter a question.")
             else:
-                with st.spinner(
-                    "Querying the Knowledge Graph..."
-                ):
-                    result = ask_knowledge_graph(
-                        G,
-                        question,
-                    )
+                with st.spinner("Querying the Knowledge Graph..."):
+                    result = ask_knowledge_graph(G, question)
 
                 if result.get("supported", False):
                     st.success(
@@ -1762,23 +1580,19 @@ def main():
                     st.write(result.get("answer", ""))
 
                     result_data = result.get("data")
-
                     if result_data is not None:
                         st.subheader("Results")
                         display_dataframe(result_data)
 
                     paths = result.get("paths", [])
-
                     if paths:
                         st.subheader(
                             "How the Knowledge Graph was used"
                         )
-
                         for path in paths:
                             st.code(path, language="text")
 
                     intent = result.get("intent")
-
                     if intent:
                         st.caption(
                             f"Detected analytical intent: {intent}"
@@ -1845,10 +1659,7 @@ def main():
             key="graph_explorer_entity_type",
         )
 
-        general_entity_view = (
-            selected_entity_type == general_option
-        )
-
+        general_entity_view = selected_entity_type == general_option
         selected_node = None
 
         if general_entity_view:
@@ -1941,17 +1752,13 @@ def main():
         with col1:
             depth = st.slider(
                 "Neighborhood depth",
-                1,
-                20,
-                3,
+                1, 20, 3,
             )
 
         with col2:
             max_nodes = st.slider(
                 "Maximum graph nodes",
-                50,
-                10000,
-                500,
+                50, 10000, 500,
                 step=50,
             )
 
@@ -1969,9 +1776,7 @@ def main():
             )
 
         if general_entity_view:
-            st.subheader(
-                "Representative Knowledge Graph overview"
-            )
+            st.subheader("Representative Knowledge Graph overview")
 
             local_overview = build_representative_subgraph(
                 G,
@@ -2110,7 +1915,6 @@ def main():
                 selected_node,
                 limit=100,
             )
-
             display_dataframe(relationship_df)
 
     # analytics
@@ -2128,17 +1932,10 @@ def main():
         )
 
         if analytics_mode == "General KG Analytics":
-            display_general_analytics(
-                G,
-                results,
-                metrics,
-            )
+            display_general_analytics(G, results, metrics)
 
         elif analytics_mode == "Individual Entity Analytics":
-            display_individual_analytics(
-                G,
-                search_index,
-            )
+            display_individual_analytics(G, search_index)
 
         else:
             if not results:

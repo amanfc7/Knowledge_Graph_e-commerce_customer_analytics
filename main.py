@@ -2,7 +2,10 @@ from data_loader import load_data
 from build_knowledge_graph import build_graph
 from kg_analysis import run_analysis
 
-from ml_node2vec import run_node2vec
+from ml_node2vec import (
+    run_node2vec,
+    evolve_kg_with_embeddings,
+)
 from nlp_sentiment import run_sentiment_analysis
 from seller_analysis import run_seller_analysis
 from geo_analysis import run_geo_analysis
@@ -124,26 +127,59 @@ def main():
         f"{G.number_of_edges():,} edges"
     )
 
-    # 9. final KG validation
-    print("\n--- FINAL KG METRICS AND VALIDATION ---")
-
-    run_graph_metrics(
-        G,
-    )
-
-    # 10. Node2Vec representation of the evolved KG
+    # 9. Node2Vec representation of the evolved KG
     print("\n--- NODE2VEC REPRESENTATION ---")
 
     model = run_node2vec(
         G,
     )
 
+    # 10. embedding evaluation
+    print("\n--- EMBEDDING EVALUATION ---")
+
     evaluate_embeddings(
         model,
         G,
     )
 
-    # 11. analytical query service
+    # 11. ML-based KG evolution
+    print("\n--- ML-BASED KG EVOLUTION ---")
+
+    nodes_before_ml = G.number_of_nodes()
+    edges_before_ml = G.number_of_edges()
+
+    added_embedding_edges = evolve_kg_with_embeddings(
+        G,
+        model,
+    )
+
+    print(
+        "\nML KG evolution:"
+    )
+
+    print(
+        f"Nodes: {nodes_before_ml:,} → "
+        f"{G.number_of_nodes():,}"
+    )
+
+    print(
+        f"Edges: {edges_before_ml:,} → "
+        f"{G.number_of_edges():,}"
+    )
+
+    print(
+        "Embedding-derived edges added:",
+        added_embedding_edges,
+    )
+
+    # 12. final KG validation
+    print("\n--- FINAL KG METRICS AND VALIDATION ---")
+
+    run_graph_metrics(
+        G,
+    )
+
+    # 13. analytical query service
     print("\n--- KG ANALYTICAL QUERY SERVICE ---")
 
     run_graph_queries(
@@ -151,14 +187,14 @@ def main():
         interactive=False,
     )
 
-    # 12. export the final evolved KG
+    # 14. export the final evolved KG
     print("\n--- EXPORTING KNOWLEDGE GRAPH ---")
 
     export_graph_to_json(
         G,
     )
 
-    # 13. visualization
+    # 15. visualization
     print("\n--- BUILDING VISUALIZATION ---")
 
     build_visualization()
